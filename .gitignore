@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+results/
+figures/
+runs/
+*.onnx
+*.pth
+*.h5
+!ModelPS/*.pth
+!ModelPS/*.h5
+.env
+.DS_Store
+.ipynb_checkpoints/
+*.zip
+*.tar.gz
