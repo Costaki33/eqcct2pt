@@ -1,23 +1,23 @@
-# Keeping this bundle aligned with `eqcct_sb`
+# Keeping this bundle aligned with the main repository
 
-The authoritative source for these scripts is the parent project under:
+The authoritative source lives in the **EQCCT / eqcct2pt** repo at the paths below (directories sit at the **repository root**, not nested under another package folder):
 
-- `eqcct_sb/models/predictor_pt_p.py`
-- `eqcct_sb/conversion/loader.py`
-- `eqcct_sb/conversion/transfer_weights_legacy.py`
-- `eqcct_sb/reference/predictor_tf.py`
-- `eqcct_sb/validation/tf_pt_p_trace.py`
-- `eqcct_sb/validation/tf_pt_s_trace.py`
-- `eqcct_sb/validation/tf_pt_seisbench_dataset_benchmark.py`
+- `models/predictor_pt_p.py`
+- `conversion/loader.py`
+- `conversion/transfer_weights_legacy.py`
+- `reference/predictor_tf.py`
+- `validation/tf_pt_p_trace.py`
+- `validation/tf_pt_s_trace.py`
+- `validation/tf_pt_seisbench_dataset_benchmark.py`
 
 ## Refresh procedure
 
 1. Copy each file into `methods_tf_to_pt_contribution/src/eqcct_tf_pt_transfer/` at the
    matching relative path (`models/`, `conversion/`, `reference/`, `validation/`).
-2. Replace the import prefix `eqcct_sb` → `eqcct_tf_pt_transfer` in every copied file.
+2. Prefix imports with `eqcct_tf_pt_transfer` (see existing bundle files): e.g.
+   `from eqcct_tf_pt_transfer.models...` rather than bare `models`.
 3. Re-apply bundle-specific edits (do **not** overwrite blindly):
-   - `validation/tf_pt_p_trace.py` and `tf_pt_s_trace.py`: `_repo_root()` must use
-     `parents[3]` so default `ModelPS/` resolves to the bundle root.
+   - `paths.py`: resolves sibling `../ModelPS` Monorepo or `bundle/ModelPS` standalone.
    - `validation/tf_pt_seisbench_dataset_benchmark.py`: keep `_import_root_for_repo()`
      so `sys.path` uses `…/src` when the package lives under `src/`.
    - `reference/predictor_tf.py`: optional removal of unused imports (e.g. `ray`) if

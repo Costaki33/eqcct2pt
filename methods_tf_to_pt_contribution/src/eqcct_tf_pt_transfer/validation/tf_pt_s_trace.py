@@ -9,12 +9,12 @@ Run from the **methods bundle root** (folder with ``README.md``), with ``src`` o
 
     cd /path/to/methods_tf_to_pt_contribution
     PYTHONPATH=src python -m eqcct_tf_pt_transfer.validation.tf_pt_s_trace \\
-      --p-h5 ../eqcct_sb/ModelPS/test_trainer_024.h5 --s-h5 ../eqcct_sb/ModelPS/test_trainer_021.h5
+      --p-h5 ../ModelPS/test_trainer_024.h5 --s-h5 ../ModelPS/test_trainer_021.h5
 
 Save PyTorch ``.pt`` only (no TF)::
 
     PYTHONPATH=src python -m eqcct_tf_pt_transfer.validation.tf_pt_s_trace \\
-      --p-h5 ... --s-h5 ... --skip-weights --skip-activations --save-model ../eqcct_sb/ModelPS/eqcct_model_s.pt
+      --p-h5 ... --s-h5 ... --skip-weights --skip-activations --save-model ../ModelPS/eqcct_model_s.pt
 
 TensorFlow layer indices match the graph from ``load_eqcct_model`` → ``modelS`` (see module
 source dump). If ``create_cct_modelS`` changes, refresh ``_TF_ACTIVATION_STAGES``, weight

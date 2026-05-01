@@ -9,8 +9,8 @@ BUNDLE_ROOT: Path = Path(__file__).resolve().parents[2]
 
 
 def _resolve_modelps() -> Path:
-    """Prefer monorepo ``../eqcct_sb/ModelPS`` next to this bundle; else ``bundle/ModelPS``."""
-    sibling = BUNDLE_ROOT.parent / "eqcct_sb" / "ModelPS"
+    """Prefer monorepo sibling ``ModelPS`` next to this bundle; else ``bundle/ModelPS``."""
+    sibling = BUNDLE_ROOT.parent / "ModelPS"
     if sibling.is_dir():
         return sibling
     return BUNDLE_ROOT / "ModelPS"

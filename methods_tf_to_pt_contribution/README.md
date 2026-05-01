@@ -4,10 +4,10 @@ This folder is a **self-contained copy** of the code used to transfer trained **
 (HDF5)** weights for EQCCT **P** and **S** branches into **PyTorch** modules, and to
 **validate** parity (layer-wise weights, activations, and SeisBench-scale outputs).
 
-Use it as a **reproducible methods appendix**: readers can drop in their own
-Keras ``*.h5`` files (by default under ``eqcct_sb/ModelPS/`` in the full repo, or
-``ModelPS/`` at the bundle root when this folder is used standalone), install
-dependencies, and rerun the same checks.
+Use it as a **reproducible methods appendix**: readers can supply their own
+Keras ``*.h5`` files (default layouts look for sibling ``ModelPS/`` beside the upstream
+repository root, otherwise ``ModelPS/`` beside this README), install dependencies with
+``pip install -r requirements.txt``, and rerun the parity scripts.
 
 ## Layout
 
@@ -19,7 +19,7 @@ dependencies, and rerun the same checks.
 | `src/eqcct_tf_pt_transfer/reference/predictor_tf.py` | TensorFlow ``load_eqcct_model`` (same graph as training) |
 | `src/eqcct_tf_pt_transfer/validation/tf_pt_p_trace.py` | P branch: weight + activation parity vs TF |
 | `src/eqcct_tf_pt_transfer/validation/tf_pt_s_trace.py` | S branch: same for ``EQCCTModelS`` |
-| `src/eqcct_tf_pt_transfer/paths.py` | Resolves default weight dir: sibling ``../eqcct_sb/ModelPS`` in monorepo, else ``ModelPS/`` here |
+| `src/eqcct_tf_pt_transfer/paths.py` | Default weights: sibling ``../ModelPS`` beside the bundle; resolves automatically |
 
 Detailed methodology: **`docs/WEIGHT_TRANSFER.md`**, validation & datasets: **`docs/VALIDATION_AND_DATASETS.md`**.
 
@@ -31,9 +31,9 @@ python -m venv .venv && source .venv/bin/activate   # optional
 pip install -r requirements.txt
 ```
 
-Place Keras checkpoints under ``eqcct_sb/ModelPS/`` when using the full
-**EQCCT_to_Seisbench** tree, or under ``ModelPS/`` at this bundle root when the
-bundle is copied out alone (or pass explicit ``--p-h5`` / ``--s-h5`` paths):
+Place Keras checkpoints under ``ModelPS/`` at the **repository root** of the parent
+project when keeping the bundle as a subdirectory, or under ``ModelPS/`` here when the
+methods folder is unpacked by itself:
 
 - ``test_trainer_024.h5`` — P branch weights (example name from the reference project)
 - ``test_trainer_021.h5`` — S branch weights
@@ -59,7 +59,7 @@ export PYTHONPATH="$(pwd)/src"
    "
    ```
 
-2. **Strict parity vs TensorFlow** (requires TF + ``predictor_tf``). From the bundle directory, omitting ``--p-h5`` uses ``paths.py`` (sibling ``../eqcct_sb/ModelPS`` when present):
+2. **Strict parity vs TensorFlow** (requires TF + ``predictor_tf``). Omitting ``--p-h5`` uses ``MODELPS_DIR`` from ``paths.py`` (looks for sibling ``../ModelPS`` containing the HDF5 checkpoints):
 
    ```bash
    PYTHONPATH=src python -m eqcct_tf_pt_transfer.validation.tf_pt_p_trace
@@ -71,13 +71,13 @@ export PYTHONPATH="$(pwd)/src"
    ```bash
    PYTHONPATH=src python -m eqcct_tf_pt_transfer.validation.tf_pt_p_trace \
      --skip-weights --skip-activations \
-     --save-model ../eqcct_sb/ModelPS/eqcct_model_p.pt
+     --save-model ../ModelPS/eqcct_model_p.pt
    PYTHONPATH=src python -m eqcct_tf_pt_transfer.validation.tf_pt_s_trace \
      --skip-weights --skip-activations \
-     --save-model ../eqcct_sb/ModelPS/eqcct_model_s.pt
+     --save-model ../ModelPS/eqcct_model_s.pt
    ```
 
-   (Use ``ModelPS/...`` instead of ``../eqcct_sb/ModelPS/...`` when the bundle is standalone and weights live next to ``README.md``.)
+   (When the bundle is standalone, swap ``../ModelPS`` for ``ModelPS`` under this folder.)
 
 4. **SeisBench dataset benchmark** (optional; slow on full corpora — use ``--max-windows`` / ``--stride``):
 
@@ -93,11 +93,10 @@ works without extra flags.
 
 ## Relationship to the main project
 
-The canonical implementation lives under the parent repository as ``eqcct_sb/``. This
-bundle duplicates the same files under the package name ``eqcct_tf_pt_transfer`` so it
-can be archived, cited, or distributed without the rest of the codebase. When updating
-the paper pipeline, **refresh this folder from** ``eqcct_sb`` (same filenames under
-``src/eqcct_tf_pt_transfer/``) and keep ``README.md`` / ``docs/`` in sync.
+Upstream keeps ``conversion``, ``validation``, ``models``, ``reference``, and ``training``
+at the repository root next to ``ModelPS/``. This bundle mirrors them under ``src/eqcct_tf_pt_transfer/``
+so it can ride along as supplementary material without dragging the notebooks and figures.
+Follow ``docs/SYNCING_FROM_MAIN_REPO.md`` whenever you refresh from upstream.
 
 ## Citation
 

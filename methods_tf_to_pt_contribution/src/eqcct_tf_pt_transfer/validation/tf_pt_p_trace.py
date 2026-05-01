@@ -7,7 +7,7 @@ Run from the **methods bundle root** (the folder that contains ``README.md``), w
 
     cd /path/to/methods_tf_to_pt_contribution
     PYTHONPATH=src python -m eqcct_tf_pt_transfer.validation.tf_pt_p_trace \\
-      --p-h5 ../eqcct_sb/ModelPS/test_trainer_024.h5 --s-h5 ../eqcct_sb/ModelPS/test_trainer_021.h5
+      --p-h5 ../ModelPS/test_trainer_024.h5 --s-h5 ../ModelPS/test_trainer_021.h5
 
 Several RNG seeds (weights checked once; activations per seed)::
 
