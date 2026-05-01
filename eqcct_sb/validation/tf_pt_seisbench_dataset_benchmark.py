@@ -41,6 +41,8 @@ from typing import Optional
 
 import numpy as np
 
+from eqcct_sb.paths import MODELPS_DIR, REPO_ROOT
+
 # ---------------------------------------------------------------------------
 # Online stats (Welford) for mean / variance of scalar stream
 # ---------------------------------------------------------------------------
@@ -465,10 +467,10 @@ def main() -> None:
     if str(repo) not in sys.path:
         sys.path.insert(0, str(repo))
 
-    p_h5 = args.p_h5 or repo / "ModelPS" / "test_trainer_024.h5"
-    s_h5 = args.s_h5 or repo / "ModelPS" / "test_trainer_021.h5"
-    pt_p = args.pt_p or (repo / "ModelPS" / "eqcct_model_p.pt")
-    pt_s = args.pt_s or (repo / "ModelPS" / "eqcct_model_s.pt")
+    p_h5 = args.p_h5 or MODELPS_DIR / "test_trainer_024.h5"
+    s_h5 = args.s_h5 or MODELPS_DIR / "test_trainer_021.h5"
+    pt_p = args.pt_p or (MODELPS_DIR / "eqcct_model_p.pt")
+    pt_s = args.pt_s or (MODELPS_DIR / "eqcct_model_s.pt")
     if not pt_p.is_file():
         pt_p = None
     if not pt_s.is_file():

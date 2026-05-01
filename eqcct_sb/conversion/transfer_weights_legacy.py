@@ -286,8 +286,10 @@ def main():
     """Main conversion function using pickle files"""
     from pathlib import Path
 
-    repo_root = Path(__file__).resolve().parents[2]
-    model_dir = repo_root / "ModelPS"
+    from eqcct_sb.paths import MODELPS_DIR, REPO_ROOT
+
+    repo_root = REPO_ROOT
+    model_dir = MODELPS_DIR
 
     print("Loading weights from pickle files...")
     with open(model_dir / "Sweights.pkl", "rb") as f:

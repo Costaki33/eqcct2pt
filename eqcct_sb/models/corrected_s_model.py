@@ -232,10 +232,14 @@ def transfer_weights_s_corrected(tf_weights, pt_model):
 
 if __name__ == "__main__":
     import pickle
-    import predictor_tf
-    
+
+    from eqcct_sb.paths import MODELPS_DIR
+    from eqcct_sb.reference import predictor_tf
+
+    mp = MODELPS_DIR
+
     # Load weights
-    with open('ModelPS/Sweights.pkl', 'rb') as f:
+    with open(mp / "Sweights.pkl", 'rb') as f:
         Sweights = pickle.load(f)
     
     # Create and transfer to corrected model
@@ -248,7 +252,8 @@ if __name__ == "__main__":
     
     # Test the corrected model
     print("\n=== Testing Corrected S Model ===")
-    _, modelS_tf = predictor_tf.load_eqcct_model('ModelPS/test_trainer_024.h5', 'ModelPS/test_trainer_021.h5')
+    _, modelS_tf = predictor_tf.load_eqcct_model(
+        str(mp / 'test_trainer_024.h5'), str(mp / 'test_trainer_021.h5'))
     
     np.random.seed(42)
     test_input = np.random.rand(1, 6000, 3).astype('float32')

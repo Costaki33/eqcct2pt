@@ -6,8 +6,8 @@ runs/
 *.onnx
 *.pth
 *.h5
-!ModelPS/*.pth
-!ModelPS/*.h5
+!eqcct_sb/ModelPS/*.pth
+!eqcct_sb/ModelPS/*.h5
 .env
 .DS_Store
 .ipynb_checkpoints/

@@ -34,9 +34,7 @@ from pathlib import Path
 
 import numpy as np
 
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+from eqcct_sb.paths import MODELPS_DIR, REPO_ROOT
 
 
 def _tf_output_to_numpy(raw):
@@ -100,10 +98,9 @@ def main(argv=None) -> int:
     )
     args = p.parse_args(argv)
 
-    root = _repo_root()
-    p_h5 = args.p_h5 or root / "ModelPS" / "test_trainer_024.h5"
-    s_h5 = args.s_h5 or root / "ModelPS" / "test_trainer_021.h5"
-    out = args.output or (root / "eqcct_model_p.onnx")
+    p_h5 = args.p_h5 or MODELPS_DIR / "test_trainer_024.h5"
+    s_h5 = args.s_h5 or MODELPS_DIR / "test_trainer_021.h5"
+    out = args.output or (REPO_ROOT / "eqcct_model_p.onnx")
 
     if not p_h5.is_file():
         print(f"Missing P weights: {p_h5}", file=sys.stderr)

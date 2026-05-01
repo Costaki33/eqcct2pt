@@ -189,8 +189,10 @@ if __name__ == "__main__":
     from eqcct_sb.models import predictor_pt_p as arch_p
     from eqcct_sb.reference import predictor_tf
 
-    repo_root = Path(__file__).resolve().parents[2]
-    model_dir = repo_root / "ModelPS"
+    from eqcct_sb.paths import MODELPS_DIR, REPO_ROOT
+
+    repo_root = REPO_ROOT
+    model_dir = MODELPS_DIR
 
     print("Loading pickled TF weight dicts (see conversion/transfer_weights_legacy.py)...")
 

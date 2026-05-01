@@ -17,10 +17,7 @@ from torch.utils.data import DataLoader
 
 from eqcct_sb.conversion.loader import load_eqcct_model_p_weights
 from eqcct_sb.models.predictor_pt_p import EQCCTModelP
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+from eqcct_sb.paths import MODELPS_DIR
 
 
 def _build_dataloader(dataset: str, sampling_rate: int, batch_size: int, num_workers: int):
@@ -91,8 +88,7 @@ def main(argv=None) -> int:
     parser.add_argument("--device", default="cpu")
     args = parser.parse_args(argv)
 
-    root = _repo_root()
-    p_h5 = args.p_h5 or root / "ModelPS" / "test_trainer_024.h5"
+    p_h5 = args.p_h5 or MODELPS_DIR / "test_trainer_024.h5"
     if not p_h5.is_file():
         print(f"Missing P weights: {p_h5}", file=sys.stderr)
         return 2

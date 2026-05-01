@@ -31,10 +31,7 @@ from eqcct_sb.conversion.loader import (
     load_eqcct_model_p_weights,
 )
 from eqcct_sb.models.predictor_pt_p import EQCCTModelP
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+from eqcct_sb.paths import MODELPS_DIR
 
 
 def _tf_output_to_numpy(raw):
@@ -176,9 +173,8 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
-    root = _repo_root()
-    p_h5 = args.p_h5 or root / "ModelPS" / "test_trainer_024.h5"
-    s_h5 = args.s_h5 or root / "ModelPS" / "test_trainer_021.h5"
+    p_h5 = args.p_h5 or MODELPS_DIR / "test_trainer_024.h5"
+    s_h5 = args.s_h5 or MODELPS_DIR / "test_trainer_021.h5"
 
     if not p_h5.is_file():
         print(f"Missing P weights: {p_h5}", file=sys.stderr)

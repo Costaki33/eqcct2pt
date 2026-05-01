@@ -5,7 +5,7 @@ Per-parameter and per-stage activation trace: TensorFlow ``modelP`` vs PyTorch `
 Run from repo root::
 
     PYTHONPATH=. python -m eqcct_sb.validation.tf_pt_p_trace \\
-      --p-h5 ModelPS/test_trainer_024.h5 --s-h5 ModelPS/test_trainer_021.h5
+      --p-h5 eqcct_sb/ModelPS/test_trainer_024.h5 --s-h5 eqcct_sb/ModelPS/test_trainer_021.h5
 
 Several RNG seeds (weights checked once; activations per seed)::
 
@@ -48,10 +48,7 @@ from eqcct_sb.conversion.loader import (
     load_eqcct_model_p_weights,
 )
 from eqcct_sb.models.predictor_pt_p import EQCCTModelP
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+from eqcct_sb.paths import MODELPS_DIR
 
 
 def _np(p: torch.Tensor) -> np.ndarray:
@@ -480,9 +477,8 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
-    root = _repo_root()
-    p_h5 = args.p_h5 or root / "ModelPS" / "test_trainer_024.h5"
-    s_h5 = args.s_h5 or root / "ModelPS" / "test_trainer_021.h5"
+    p_h5 = args.p_h5 or MODELPS_DIR / "test_trainer_024.h5"
+    s_h5 = args.s_h5 or MODELPS_DIR / "test_trainer_021.h5"
 
     if not p_h5.is_file() or not s_h5.is_file():
         print(f"Missing weights p={p_h5} s={s_h5}", file=sys.stderr)

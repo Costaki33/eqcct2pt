@@ -7,12 +7,12 @@ Mirrors ``tf_pt_p_trace`` for the S branch (extra pre/post ConvF1 around each tr
 Run from repo root::
 
     PYTHONPATH=. python -m eqcct_sb.validation.tf_pt_s_trace \\
-      --p-h5 ModelPS/test_trainer_024.h5 --s-h5 ModelPS/test_trainer_021.h5
+      --p-h5 eqcct_sb/ModelPS/test_trainer_024.h5 --s-h5 eqcct_sb/ModelPS/test_trainer_021.h5
 
 Save PyTorch ``.pt`` only (no TF)::
 
     PYTHONPATH=. python -m eqcct_sb.validation.tf_pt_s_trace \\
-      --p-h5 ... --s-h5 ... --skip-weights --skip-activations --save-model ModelPS/eqcct_model_s.pt
+      --p-h5 ... --s-h5 ... --skip-weights --skip-activations --save-model eqcct_sb/ModelPS/eqcct_model_s.pt
 
 TensorFlow layer indices match the graph from ``load_eqcct_model`` → ``modelS`` (see module
 source dump). If ``create_cct_modelS`` changes, refresh ``_TF_ACTIVATION_STAGES``, weight
@@ -39,10 +39,7 @@ from eqcct_sb.conversion.loader import (
     load_eqcct_model_s_weights,
 )
 from eqcct_sb.models.predictor_pt_p import EQCCTModelS
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+from eqcct_sb.paths import MODELPS_DIR
 
 
 def _np(p: torch.Tensor) -> np.ndarray:
@@ -518,9 +515,8 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
-    root = _repo_root()
-    p_h5 = args.p_h5 or root / "ModelPS" / "test_trainer_024.h5"
-    s_h5 = args.s_h5 or root / "ModelPS" / "test_trainer_021.h5"
+    p_h5 = args.p_h5 or MODELPS_DIR / "test_trainer_024.h5"
+    s_h5 = args.s_h5 or MODELPS_DIR / "test_trainer_021.h5"
 
     if not p_h5.is_file() or not s_h5.is_file():
         print(f"Missing weights p={p_h5} s={s_h5}", file=sys.stderr)
