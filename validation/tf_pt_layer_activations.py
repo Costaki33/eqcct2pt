@@ -4,7 +4,7 @@ Layer-by-layer activation diff TF vs PT (P + S branches), for one or more device
 profiles. For each named checkpoint along the architecture (front-end conv stack
 -> patch encoder -> transformer blocks -> final LN -> picker reshape) we compute
 
-  max |TF - PT|  and  mean |TF - PT|
+  max/median/mean |TF - PT|
 
 averaged across N random ``(B, 6000, 3)`` inputs (default 5). Results for each
 profile are dumped to JSON for plotting by ``scripts/plot_layer_activations.py``.
@@ -40,7 +40,8 @@ def _short_name(key: str) -> str:
     if "post_patch_encoder" in key:
         return "Patch encoder"
     if "transformer_block" in key:
-        return "TB" + key[-1]
+        # After the k-th transformer encoder block along the backbone (indices 0,1,...).
+        return "Transformer blk " + key[-1]
     if "final_LN" in key:
         return "Final LN"
     if "after_reshape" in key:
@@ -116,6 +117,7 @@ def run_profile(
         out: list[dict] = []
         per_seed_max: dict[str, list[float]] = {st.key: [] for st in stages}
         per_seed_mean: dict[str, list[float]] = {st.key: [] for st in stages}
+        per_seed_med: dict[str, list[float]] = {st.key: [] for st in stages}
         for seed in range(n_seeds):
             rng = np.random.default_rng(seed)
             x = rng.standard_normal((1, 6000, 3)).astype(np.float32)
@@ -135,13 +137,17 @@ def run_profile(
                 if a.shape != b.shape:
                     per_seed_max[st.key].append(float("nan"))
                     per_seed_mean[st.key].append(float("nan"))
+                    per_seed_med[st.key].append(float("nan"))
                     continue
                 d = np.abs(a - b)
+                flat = d.reshape(-1)
                 per_seed_max[st.key].append(float(d.max()))
                 per_seed_mean[st.key].append(float(d.mean()))
+                per_seed_med[st.key].append(float(np.median(flat)))
         for st in stages:
             mx = np.asarray(per_seed_max[st.key])
             me = np.asarray(per_seed_mean[st.key])
+            md = np.asarray(per_seed_med[st.key])
             out.append({
                 "key": st.key,
                 "short": _short_name(st.key),
@@ -149,6 +155,8 @@ def run_profile(
                 "tf_layer_index": st.tf_layer_index,
                 "max_abs_diff_mean": float(np.nanmean(mx)),
                 "max_abs_diff_std": float(np.nanstd(mx, ddof=1)) if mx.size > 1 else 0.0,
+                "median_abs_diff_mean": float(np.nanmean(md)),
+                "median_abs_diff_std": float(np.nanstd(md, ddof=1)) if md.size > 1 else 0.0,
                 "mean_abs_diff_mean": float(np.nanmean(me)),
                 "mean_abs_diff_std": float(np.nanstd(me, ddof=1)) if me.size > 1 else 0.0,
                 "n_seeds": int(mx.size),

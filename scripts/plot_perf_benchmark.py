@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
-"""Plot TF vs PT performance benchmark (inference time, RAM, VRAM, throughput).
+"""Plot TF vs PT performance benchmark.
 
-Reads the JSON written by ``validation.tf_pt_perf_benchmark`` and writes
+Panels (A)-(B): **paired P→S timings** — for each timed window ``k``, total seconds
+``tf_p[k]+tf_s[k]`` (TensorFlow) and ``pt_p[k]+pt_s[k]`` (PyTorch), matching benchmark order.
+Throughput panels use ``1/(t_P + t_S)`` for each timed window (windows per second).
+Strip markers lie at fixed x (categorical).
+
+Panels (C)-(D): **grouped bars** for scalar RSS / VRAM (one value per metric per profile).
+
+Reads ``validation.tf_pt_perf_benchmark`` JSON and writes
 ``figures/tf_pt_perf_benchmark.png``.
 
 Usage::
@@ -18,27 +25,17 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 
+REPO = Path(__file__).resolve().parents[1]
+
+# Bottom panels: same legend wording—both compare TF vs PT with P + S models in memory.
+MEM_TF_LEGEND = "TF (P + S)"
+MEM_PT_LEGEND = "PT (P + S)"
+
 
 def _clean_log_yaxis(ax) -> None:
-    """Major decade ticks only on a log y-axis; grid on majors only."""
     ax.yaxis.set_major_locator(mticker.LogLocator(base=10.0))
     ax.yaxis.set_minor_locator(mticker.NullLocator())
     ax.grid(True, axis="y", which="major", alpha=0.3)
-
-
-def _legend_upper_right(ax, *, ncol: int = 1) -> None:
-    """Consistent in-axes legend in the upper-right corner."""
-    leg = ax.legend(
-        loc="upper right",
-        ncol=ncol,
-        fontsize=8,
-        frameon=True,
-        borderaxespad=0.5,
-        handlelength=1.6,
-        columnspacing=1.2,
-    )
-    leg.get_frame().set_edgecolor("0.7")
-    leg.get_frame().set_alpha(0.95)
 
 
 def _headroom_log(ax, factor: float = 3.0) -> None:
@@ -46,15 +43,69 @@ def _headroom_log(ax, factor: float = 3.0) -> None:
     ax.set_ylim(lo, hi * factor)
 
 
-def _headroom_linear(ax, factor: float = 1.3) -> None:
+def _headroom_linear(ax, factor: float = 1.18) -> None:
     lo, hi = ax.get_ylim()
-    ax.set_ylim(lo, hi * factor)
-
-REPO = Path(__file__).resolve().parents[1]
+    ax.set_ylim(max(0, lo * 0.98), hi * factor)
 
 
 def _profile_label(name: str) -> str:
-    return {"cpu": "CPU", "gpu0": "GPU 0", "gpu1": "GPU 1"}.get(name, name)
+    if name == "cpu":
+        return "CPU"
+    if name.startswith("gpu"):
+        return "GPU"
+    return name
+
+
+def _paired_p_s_wall_s(r: dict, backend_prefix: str) -> np.ndarray:
+    """Sequential P-then-S wall time per timed window ``k``, in seconds (matches benchmark loop)."""
+    tp = np.asarray(r[f"{backend_prefix}_p"]["all_s"], dtype=np.float64)
+    ts = np.asarray(r[f"{backend_prefix}_s"]["all_s"], dtype=np.float64)
+    if tp.shape != ts.shape:
+        raise ValueError(f"{backend_prefix}: P vs S timing list lengths mismatch")
+    return tp + ts
+
+
+def _violin_strip_one(
+    ax,
+    y: np.ndarray,
+    *,
+    position: float,
+    width: float,
+    facecolor: str,
+    strip_alpha: float = 0.82,
+    strip_size: float = 26,
+) -> None:
+    """KDE-shaped violin plus markers at fixed x — categorical axis, no horizontal jitter."""
+    v = np.asarray(y, dtype=np.float64).ravel()
+    v = np.clip(v, np.finfo(np.float64).tiny, np.inf)
+
+    vp = ax.violinplot(
+        [v],
+        positions=[position],
+        widths=width,
+        showmeans=False,
+        showmedians=True,
+        showextrema=False,
+    )
+    for body in vp["bodies"]:
+        body.set_facecolor(facecolor)
+        body.set_edgecolor("0.35")
+        body.set_linewidth(0.8)
+        body.set_alpha(0.52)
+    if vp.get("cmedians") is not None:
+        vp["cmedians"].set_color("0.1")
+        vp["cmedians"].set_linewidth(1.15)
+
+    ax.scatter(
+        np.full(v.shape[0], position, dtype=np.float64),
+        v,
+        s=strip_size,
+        c=facecolor,
+        edgecolors="0.15",
+        linewidths=0.35,
+        alpha=strip_alpha,
+        zorder=5,
+    )
 
 
 def main() -> None:
@@ -64,111 +115,123 @@ def main() -> None:
     out_png = out_dir / "tf_pt_perf_benchmark.png"
 
     payload = json.loads(in_path.read_text())
-    results = payload["results"]
-    profiles = [r["profile"] for r in results]
-    labels = [_profile_label(p) for p in profiles]
+    all_results = payload["results"]
+    # Filter: keep CPU and only the first GPU (gpu0) — call it just "GPU"
+    results = []
+    seen_gpu = False
+    for r in all_results:
+        if r["profile"] == "cpu":
+            results.append(r)
+        elif r["profile"].startswith("gpu") and not seen_gpu:
+            results.append(r)
+            seen_gpu = True
+    labels = [_profile_label(r["profile"]) for r in results]
 
-    fig, axes = plt.subplots(2, 2, figsize=(12.0, 8.5), constrained_layout=True)
+    top_backends = (("TF", "tf"), ("PT", "pt"))
+    top_colors = ("#2c7bb6", "#d7191c")
 
-    # (A) Mean inference time per window (ms), TF vs PT, P + S
-    ax = axes[0, 0]
-    x = np.arange(len(profiles))
-    w = 0.2
-    tf_p = [r["tf_p"]["mean_s"] * 1000 for r in results]
-    tf_s = [r["tf_s"]["mean_s"] * 1000 for r in results]
-    pt_p = [r["pt_p"]["mean_s"] * 1000 for r in results]
-    pt_s = [r["pt_s"]["mean_s"] * 1000 for r in results]
-    tf_p_err = [r["tf_p"]["std_s"] * 1000 for r in results]
-    tf_s_err = [r["tf_s"]["std_s"] * 1000 for r in results]
-    pt_p_err = [r["pt_p"]["std_s"] * 1000 for r in results]
-    pt_s_err = [r["pt_s"]["std_s"] * 1000 for r in results]
-    ax.bar(x - 1.5 * w, tf_p, w, yerr=tf_p_err, label="TF P", color="#2c7bb6", capsize=3)
-    ax.bar(x - 0.5 * w, tf_s, w, yerr=tf_s_err, label="TF S", color="#abd9e9", capsize=3)
-    ax.bar(x + 0.5 * w, pt_p, w, yerr=pt_p_err, label="PT P", color="#d7191c", capsize=3)
-    ax.bar(x + 1.5 * w, pt_s, w, yerr=pt_s_err, label="PT S", color="#fdae61", capsize=3)
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels)
-    ax.set_ylabel("Mean inference time per window (ms)")
-    ax.set_yscale("log")
-    ax.set_title(f"(A) Per-window inference latency (n={payload['n_windows']} windows, 60 s @ 100 Hz)")
-    _clean_log_yaxis(ax)
-    _headroom_log(ax, factor=5.0)
-    _legend_upper_right(ax, ncol=2)
+    fig, axes = plt.subplots(2, 2, figsize=(13.5, 9.2), constrained_layout=False)
+    fig.subplots_adjust(left=0.085, right=0.96, top=0.96, bottom=0.08, wspace=0.32, hspace=0.38)
 
-    # (B) Throughput (windows/sec), TF vs PT
-    ax = axes[0, 1]
-    tf_thr = [
-        1.0 / r["tf_p"]["mean_s"] + 1.0 / r["tf_s"]["mean_s"]  # not used; reset below
-        for r in results
+    n_prof = len(results)
+    n_pair = len(top_backends)
+    offsets = np.linspace(-0.18, 0.18, n_pair)
+    violin_width = min(0.24, abs(offsets[1] - offsets[0]) * 0.75 if n_pair > 1 else 0.24)
+    h_top = [
+        plt.Rectangle((0, 0), 1, 1, fc=top_colors[0], ec="0.25", alpha=0.72),
+        plt.Rectangle((0, 0), 1, 1, fc=top_colors[1], ec="0.25", alpha=0.72),
     ]
-    # Throughput per single forward (P alone, S alone), TF vs PT
-    tf_p_thr = [r["tf_p"]["throughput_win_per_s"] for r in results]
-    tf_s_thr = [r["tf_s"]["throughput_win_per_s"] for r in results]
-    pt_p_thr = [r["pt_p"]["throughput_win_per_s"] for r in results]
-    pt_s_thr = [r["pt_s"]["throughput_win_per_s"] for r in results]
-    ax.bar(x - 1.5 * w, tf_p_thr, w, label="TF P", color="#2c7bb6")
-    ax.bar(x - 0.5 * w, tf_s_thr, w, label="TF S", color="#abd9e9")
-    ax.bar(x + 0.5 * w, pt_p_thr, w, label="PT P", color="#d7191c")
-    ax.bar(x + 1.5 * w, pt_s_thr, w, label="PT S", color="#fdae61")
-    ax.set_xticks(x)
+    top_labels = [top_backends[0][0], top_backends[1][0]]
+
+    # (A) P→S wall time summed per timed window — matches benchmark iteration order (ms).
+    ax = axes[0, 0]
+    for i, r in enumerate(results):
+        for j, (_, prefix) in enumerate(top_backends):
+            ms = _paired_p_s_wall_s(r, prefix) * 1000.0
+            pos = float(i + offsets[j])
+            _violin_strip_one(ax, ms, position=pos, width=float(violin_width), facecolor=top_colors[j])
+
+    ax.set_xticks(np.arange(n_prof))
     ax.set_xticklabels(labels)
-    ax.set_ylabel("Throughput (windows / second)")
+    ax.set_ylabel(r"Sequential P$\to$S latency (ms)")
     ax.set_yscale("log")
-    ax.set_title("(B) Single-stream throughput (60 s windows)")
     _clean_log_yaxis(ax)
-    _headroom_log(ax, factor=5.0)
-    _legend_upper_right(ax, ncol=2)
+    _headroom_log(ax, factor=3.2)
+    ax.set_xlim(-0.55, n_prof - 0.45 + 0.05)
+    if n_prof > 1:
+        ax.axvline(0.5, color="0.5", ls="--", lw=1.0, alpha=0.7)
+    ax.legend(h_top, top_labels, loc="upper right", fontsize=8, ncol=1, frameon=True)
 
-    # (C) Host RAM delta after model load (TF only, then TF+PT)
-    ax = axes[1, 0]
-    rss_tf = [r["rss_tf_load_delta_mb"] for r in results]
-    rss_pt = [r["rss_pt_load_delta_mb"] for r in results]
-    ax.bar(x - 0.2, rss_tf, 0.4, label="TF P+S load", color="#2c7bb6")
-    ax.bar(x + 0.2, rss_pt, 0.4, label="PT P+S load (additional)", color="#d7191c")
-    ax.set_xticks(x)
+    # (B) Throughput = inverse total P→S time for that window — consistent with (A).
+    ax = axes[0, 1]
+    for i, r in enumerate(results):
+        for j, (_, prefix) in enumerate(top_backends):
+            combo_s = _paired_p_s_wall_s(r, prefix)
+            thr = 1.0 / np.maximum(combo_s, 1e-12)
+            pos = float(i + offsets[j])
+            _violin_strip_one(ax, thr, position=pos, width=float(violin_width), facecolor=top_colors[j])
+
+    ax.set_xticks(np.arange(n_prof))
     ax.set_xticklabels(labels)
-    ax.set_ylabel("Host RAM increase (MB, RSS delta)")
-    ax.set_title("(C) Host RAM usage after model load")
-    ax.grid(True, axis="y", alpha=0.3)
-    for xi, v in zip(x - 0.2, rss_tf):
-        ax.text(xi, v, f"{v:.0f}", ha="center", va="bottom", fontsize=8)
-    for xi, v in zip(x + 0.2, rss_pt):
-        ax.text(xi, v, f"{v:.0f}", ha="center", va="bottom", fontsize=8)
-    _headroom_linear(ax, factor=1.45)
-    _legend_upper_right(ax, ncol=1)
+    ax.set_ylabel(r"Throughput (windows$\,$s$^{-1}$)")
+    ax.set_yscale("log")
+    _clean_log_yaxis(ax)
+    _headroom_log(ax, factor=3.2)
+    ax.set_xlim(-0.55, n_prof - 0.45 + 0.05)
+    if n_prof > 1:
+        ax.axvline(0.5, color="0.5", ls="--", lw=1.0, alpha=0.7)
+    ax.legend(h_top, top_labels, loc="upper right", fontsize=8, ncol=1, frameon=True)
 
-    # (D) Peak GPU VRAM after warm inference (TF vs PT). GPU profiles only.
+    # (C) Host RAM deltas — grouped bars
+    ax = axes[1, 0]
+    ram_bar_w = min(0.14, (offsets[-1] - offsets[0] + violin_width * 2) / 4.8)
+    x_tf = np.arange(n_prof) - ram_bar_w * 0.55
+    x_pt = np.arange(n_prof) + ram_bar_w * 0.55
+    rss_tf = [float(r["rss_tf_load_delta_mb"]) for r in results]
+    rss_pt = [float(r["rss_pt_load_delta_mb"]) for r in results]
+    ax.bar(x_tf, rss_tf, width=ram_bar_w, label=MEM_TF_LEGEND, color="#2c7bb6", edgecolor="0.28", linewidth=0.6, alpha=0.88)
+    ax.bar(x_pt, rss_pt, width=ram_bar_w, label=MEM_PT_LEGEND, color="#d7191c", edgecolor="0.28", linewidth=0.6, alpha=0.88)
+    for xi, v in zip(x_tf, rss_tf):
+        ax.text(float(xi), v, f"{v:.0f}", ha="center", va="bottom", fontsize=8, color="0.25")
+    for xi, v in zip(x_pt, rss_pt):
+        ax.text(float(xi), v, f"{v:.0f}", ha="center", va="bottom", fontsize=8, color="0.25")
+    ax.set_xticks(np.arange(n_prof))
+    ax.set_xticklabels(labels)
+    ax.set_ylabel("Host RAM increase after model load (MB, RSS Δ)")
+    ax.grid(True, axis="y", alpha=0.33)
+    _headroom_linear(ax)
+    ax.legend(loc="upper right", fontsize=8, frameon=True)
+
+    # (D) GPU VRAM peaks — grouped bars (single GPU only)
     ax = axes[1, 1]
     gpu_results = [r for r in results if r["profile"].startswith("gpu")]
     if gpu_results:
-        gpu_labels = [_profile_label(r["profile"]) for r in gpu_results]
-        gx = np.arange(len(gpu_results))
-        tf_vram = [r["tf_peak_vram_mb"] if r["tf_peak_vram_mb"] is not None else 0.0 for r in gpu_results]
-        pt_vram = [r["pt_peak_vram_mb"] if r["pt_peak_vram_mb"] is not None else 0.0 for r in gpu_results]
-        ax.bar(gx - 0.2, tf_vram, 0.4, label="TF peak VRAM", color="#2c7bb6")
-        ax.bar(gx + 0.2, pt_vram, 0.4, label="PT peak VRAM", color="#d7191c")
-        ax.set_xticks(gx)
-        ax.set_xticklabels(gpu_labels)
-        for xi, v in zip(gx - 0.2, tf_vram):
-            ax.text(xi, v, f"{v:.0f}", ha="center", va="bottom", fontsize=8)
-        for xi, v in zip(gx + 0.2, pt_vram):
-            ax.text(xi, v, f"{v:.0f}", ha="center", va="bottom", fontsize=8)
+        r = gpu_results[0]  # single GPU
+        tf_v = 0.0 if r["tf_peak_vram_mb"] is None else float(r["tf_peak_vram_mb"])
+        pt_v = 0.0 if r["pt_peak_vram_mb"] is None else float(r["pt_peak_vram_mb"])
+        bar_x = np.array([0, 1])
+        bar_vals = [tf_v, pt_v]
+        bar_colors = ["#2c7bb6", "#d7191c"]
+        ax.bar(bar_x, bar_vals, width=0.55, color=bar_colors, edgecolor="0.28", linewidth=0.6, alpha=0.88)
+        for xi, v in zip(bar_x, bar_vals):
+            ax.text(float(xi), v, f"{v:.1f}", ha="center", va="bottom", fontsize=9, color="0.25")
+        ax.set_xticks(bar_x)
+        ax.set_xticklabels(["TF", "PT"], fontsize=9)
+        ax.set_xlim(-0.6, 1.6)
+        h = [
+            plt.Rectangle((0, 0), 1, 1, fc=bar_colors[0], ec="0.28", alpha=0.88),
+            plt.Rectangle((0, 0), 1, 1, fc=bar_colors[1], ec="0.28", alpha=0.88),
+        ]
+        ax.legend(h, [MEM_TF_LEGEND, MEM_PT_LEGEND], loc="upper right", fontsize=8, frameon=True)
     else:
         ax.text(0.5, 0.5, "No GPU profiles in this run", ha="center", va="center", transform=ax.transAxes)
         ax.set_xticks([])
-    ax.set_ylabel("Peak GPU memory after inference (MB)")
-    ax.set_title("(D) Peak VRAM during inference")
-    ax.grid(True, axis="y", alpha=0.3)
-    _headroom_linear(ax, factor=1.45)
-    if gpu_results:
-        _legend_upper_right(ax, ncol=1)
 
-    fig.suptitle(
-        "EQCCT performance: TensorFlow versus PyTorch\n"
-        f"({payload['n_windows']} timed windows of 6000 samples, {payload['warmup']} warmup forwards)",
-        fontsize=12,
-    )
-    fig.savefig(out_png, dpi=200, bbox_inches="tight")
+    ax.set_ylabel("GPU VRAM during inference (MB, peak)")
+    ax.grid(True, axis="y", alpha=0.33)
+    _headroom_linear(ax)
+
+    fig.savefig(out_png, dpi=200, bbox_inches="tight", pad_inches=0.28)
     print("Wrote", out_png)
 
 

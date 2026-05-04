@@ -8,13 +8,14 @@ runs over far fewer windows (default 1000 per dataset per profile) but stores
 the raw per-window arrays needed for distribution plots:
 
   * MAE per window for the P branch and the S branch
-  * max |TF - PT| per window for the P branch and the S branch
+  * max |TF - PT| per window for the P branch and the S branch (exported as ``*_max``)
+  * median |TF - PT| within each window (over output samples), P and S branches (``*_med``)
 
 Each device profile (``cpu``, ``gpu0``, ``gpu1``) runs in its own subprocess
 (TF CPU mode hides GPUs globally and would otherwise break later GPU profiles).
 
 Output is a single NPZ keyed by ``<profile>_<branch>_<metric>``, e.g.
-``cpu_p_mae``, ``gpu0_s_max``.
+``cpu_p_mae``, ``gpu0_s_max``, ``gpu0_p_med``.
 
 Example::
 
@@ -132,6 +133,8 @@ def run_profile(
     mae_s_list: list[float] = []
     max_p_list: list[float] = []
     max_s_list: list[float] = []
+    med_p_list: list[float] = []
+    med_s_list: list[float] = []
     src_dataset: list[str] = []
 
     for ds_name in datasets:
@@ -180,6 +183,8 @@ def run_profile(
             mae_s_list.append(float(d_s.mean()))
             max_p_list.append(float(d_p.max()))
             max_s_list.append(float(d_s.max()))
+            med_p_list.append(float(np.median(d_p)))
+            med_s_list.append(float(np.median(d_s)))
             src_dataset.append(ds_name)
 
     return {
@@ -189,6 +194,8 @@ def run_profile(
         "mae_s": np.asarray(mae_s_list, dtype=np.float64),
         "max_p": np.asarray(max_p_list, dtype=np.float64),
         "max_s": np.asarray(max_s_list, dtype=np.float64),
+        "med_p": np.asarray(med_p_list, dtype=np.float64),
+        "med_s": np.asarray(med_s_list, dtype=np.float64),
         "dataset": np.asarray(src_dataset, dtype=object),
     }
 
@@ -272,9 +279,15 @@ def main() -> None:
             p_h5=p_h5, s_h5=s_h5, pt_p=pt_p, pt_s=pt_s,
             datasets=ds_list, max_windows=args.max_windows, stride=args.stride,
         )
-        for branch_short, key in (("p_mae", "mae_p"), ("s_mae", "mae_s"),
-                                  ("p_max", "max_p"), ("s_max", "max_s"),
-                                  ("dataset", "dataset")):
+        for branch_short, key in (
+            ("p_mae", "mae_p"),
+            ("s_mae", "mae_s"),
+            ("p_max", "max_p"),
+            ("s_max", "max_s"),
+            ("p_med", "med_p"),
+            ("s_med", "med_s"),
+            ("dataset", "dataset"),
+        ):
             arrays[f"{name}_{branch_short}"] = d[key]
         summary.append({"profile": name, "n_windows": d["n_windows"]})
 

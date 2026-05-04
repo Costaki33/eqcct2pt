@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""2x2 error-distribution figure (CDF CPU, CDF GPU, Violin MAE, Box max error).
+"""2x2 error-distribution figure (CDF CPU, CDF GPU, MAE distribution, max-error boxes).
 
 Reads the NPZ produced by ``validation.tf_pt_per_window_errors`` and
 writes ``figures/tf_pt_error_distributions.png``.
@@ -70,7 +70,8 @@ def main() -> None:
     gpu_p_mae = z[f"{gpu}_p_mae"].astype(np.float64)
     gpu_s_mae = z[f"{gpu}_s_mae"].astype(np.float64)
 
-    fig, axes = plt.subplots(2, 2, figsize=(12.0, 8.5), constrained_layout=True)
+    fig, axes = plt.subplots(2, 2, figsize=(12.0, 9.0), constrained_layout=False)
+    fig.subplots_adjust(left=0.09, right=0.96, top=0.96, bottom=0.08, wspace=0.30, hspace=0.38)
 
     # (A) CDF — CPU profile
     ax = axes[0, 0]
@@ -83,7 +84,6 @@ def main() -> None:
     ax.set_xscale("log")
     ax.set_xlabel(r"$\max |\mathrm{TF}-\mathrm{PT}|$ per window")
     ax.set_ylabel("Cumulative fraction of windows")
-    ax.set_title("(A) Empirical CDF — CPU profile")
     ax.grid(True, which="both", alpha=0.3)
     for thr, label in [(1e-6, "1e-6"), (1e-4, "1e-4"), (1e-2, "1e-2")]:
         ax.axvline(thr, color="0.55", ls=":", lw=0.8, alpha=0.7)
@@ -106,7 +106,6 @@ def main() -> None:
     ax.set_xscale("log")
     ax.set_xlabel(r"$\max |\mathrm{TF}-\mathrm{PT}|$ per window")
     ax.set_ylabel("Cumulative fraction of windows")
-    ax.set_title(f"(B) Empirical CDF — {gpu.upper()} profile")
     _log_decade_ticks(ax, axis="x")
     ax.grid(True, axis="y", which="major", alpha=0.3)
     for thr, label in [(1e-6, "1e-6"), (1e-4, "1e-4"), (1e-2, "1e-2")]:
@@ -119,7 +118,7 @@ def main() -> None:
             transform=ax.transAxes, fontsize=9, va="top",
             bbox=dict(facecolor="white", edgecolor="0.7", alpha=0.85, boxstyle="round,pad=0.3"))
 
-    # (C) Violin — MAE per window, P/S × CPU/GPU
+    # MAE distributions (violin plot)
     ax = axes[1, 0]
     data = [
         np.log10(_safe(cpu_p_mae)),
@@ -134,18 +133,17 @@ def main() -> None:
         body.set_edgecolor("0.2")
         body.set_alpha(0.55)
     ax.set_xticks([1, 2, 3, 4])
-    ax.set_xticklabels([f"P\nCPU", f"S\nCPU", f"P\n{gpu.upper()}", f"S\n{gpu.upper()}"], fontsize=9)
-    ax.set_ylabel(r"$\log_{10}(\mathrm{MAE\ per\ window})$")
-    ax.set_title("(C) MAE per window — full distribution (violin)")
+    ax.set_xticklabels(["P\nCPU", "S\nCPU", "P\nGPU", "S\nGPU"], fontsize=9)
+    ax.set_ylabel(r"$\log_{10}(\mathrm{MAE})$ per window")
     ax.grid(True, axis="y", alpha=0.3)
 
-    # (D) Box plot — max |TF-PT| per window with outliers
+    # (D) Box plot — MAE |TF−PT| per window
     ax = axes[1, 1]
     box_data = [
-        _safe(cpu_p_max),
-        _safe(cpu_s_max),
-        _safe(gpu_p_max),
-        _safe(gpu_s_max),
+        _safe(cpu_p_mae),
+        _safe(cpu_s_mae),
+        _safe(gpu_p_mae),
+        _safe(gpu_s_mae),
     ]
     bp = ax.boxplot(box_data, positions=[1, 2, 3, 4], widths=0.55, patch_artist=True,
                     flierprops=dict(marker="o", markersize=2, markerfacecolor="0.4",
@@ -159,15 +157,10 @@ def main() -> None:
         med.set_linewidth(1.2)
     ax.set_yscale("log")
     ax.set_xticks([1, 2, 3, 4])
-    ax.set_xticklabels([f"P\nCPU", f"S\nCPU", f"P\n{gpu.upper()}", f"S\n{gpu.upper()}"], fontsize=9)
-    ax.set_ylabel(r"$\max |\mathrm{TF}-\mathrm{PT}|$ per window")
-    ax.set_title("(D) Worst-point per-window mismatch (box + outliers)")
+    ax.set_xticklabels(["P\nCPU", "S\nCPU", "P\nGPU", "S\nGPU"], fontsize=9)
+    ax.set_ylabel(r"$\mathrm{MAE}$ per window")
     _log_decade_ticks(ax, axis="y")
 
-    fig.suptitle(
-        "TF vs PT output discrepancy distributions on real SeisBench windows",
-        fontsize=12,
-    )
     fig.savefig(out_png, dpi=200, bbox_inches="tight")
     print("Wrote", out_png)
 
