@@ -1,0 +1,31 @@
+# Conda env for parity checks, conversion, SeisBench validation, and figure scripts.
+#
+# Create:    conda env create -f environment.yml
+#            conda activate eqcct2pt
+# Update:    conda env update -f environment.yml --prune
+#
+# If solving is slow, use mamba:   mamba env create -f environment.yml
+#
+# GPU PyTorch: remove pytorch-cpu and install a CUDA build matching your driver, e.g.
+#   conda install pytorch pytorch-cuda=12.1 -c pytorch -c nvidia
+# then align TensorFlow with your lab’s CUDA policy.
+#
+name: eqcct2pt
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - numpy>=1.24
+  - scipy
+  - matplotlib>=3.7
+  - h5py
+  - pandas
+  - psutil
+  - scikit-learn
+  - tqdm
+  - pytorch-cpu
+  - tensorflow
+  - pip:
+    - seisbench
+    - silence-tensorflow

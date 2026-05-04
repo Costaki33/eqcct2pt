@@ -1,60 +1,66 @@
-# eqcct2pt
+# eqcct2pt — TensorFlow to PyTorch weight transfer (EQCCT case study)
 
-Bring **EQCCT** seismic phase pickers from their original **TensorFlow / Keras** training stack into **PyTorch**, with enough checks that you can honestly say “this module is still the same model,” not “we rewrote something similar.”
+Seismic research groups train their own phase-picking models using whichever machine learning framework that fits their process workflow, and TensorFlow/Keras remains a popular choice. At the same time, the modern open-source seismology ecosystem has largely standardized around PyTorch, with SeisBench reinforcing this shift by adopting PyTorch as its exclusive framework. This exclusivity creates a practical challenge for researchers who have existing models using other frameworks: how can these models be transferred to PyTorch without retraining? In practice, transferring model weights can be difficult, and without a reliable conversion process, research groups often   
+struggle to integrate their prior work into modern toolkits. In this repository, we document a practical path to **reuse the same weights** in PyTorch: layout rules, loaders, and checks that hold when you point at real EQCCT checkpoints. It is built around **EQCCT’s split design**, a **P-branch** model and a separate **S-branch** model, each with its own checkpoint.
 
-## Why this exists
+## How to read this repository
 
-Lots of institutional pickers live in TensorFlow because that was the path of least resistance when they were built. Meanwhile the stack you probably want next (SeisBench tooling, newer lab code) is largely PyTorch. Your checkpoints are still Keras HDF5 blobs from the legacy pipeline. This repo exists to narrow that bridge: carry weights across faithfully, preserve forward‑pass semantics, emit `.pt` checkpoints that downstream code can load without surprises.
+**Model checkpoints and exports** live under `ModelPS/` at the repo root (paired `.h5` Keras bundles and optional `.pt` exports). `paths.py` pins `MODELPS_DIR` and `REPO_ROOT` so scripts and notebooks do not depend on fragile relative paths. The original TensorFlow P model is `test_trainer_024.h5`, and the original S model is `test_trainer_021.h5`.
 
-## How to read the repo (mental walk‑through)
+**Dual implementations:** `models/` defines the PyTorch modules you would ship (`EQCCTModelP`, `EQCCTModelS` and related code). `reference/` holds the TensorFlow/Keras side used to load the original weights and to run numerical comparisons. You will read both when asking whether a layer order still matches after a Keras upgrade.
 
-1. **Understand what you are cloning.** EQCCT is not one network; it ships **two** models: a **P branch** and an **S branch**, each with its own HDF5 checkpoint. Those files end up next to exported PyTorch weights under **`ModelPS/`** at this repository root.
-2. **See the architectures in code.** **`models/`** (`predictor_pt_p.py`) is where the definitive PyTorch `EQCCTModelP` and `EQCCTModelS` live. The **`reference/`** tree holds the TensorFlow mirror used when you compare numerically or load Keras checkpoints.
-3. **Move tensors, not guesses.** HDF5 lays weights out differently from PyTorch `state_dict`s (transpose rules, convolution axis order, attention splits). **`conversion/`** is the seriousness: loaders that map keys, coerce shapes, and refuse “close enough” guesses that would silently nail the wrong layer.
-4. **Prove it.** **`validation/`** is the story you tell reviewers or your future self after a long break: parity on random tensors, traces through individual layers when something drifts, then larger SeisBench window pulls when you dare trust aggregate error. ONNX export lives here too when you want a second opinion beside TensorFlow.
-5. **`paths.py`** is unglamorous but important: one place that knows **`ModelPS/`** sits at repo root so scripts do not reinvent brittle `../../` navigation.
+**Conversion** (`conversion/`) is the main weight transfer system. It includes flattening HDF5 groups, normalizing names, and mapping each weight to the right PyTorch parameter, including the easy-to-get-wrong cases (Conv1d axis order, dense transposes, attention projections).
 
-Supporting pieces: **`training/`** for SeisBench‑style finetune experiments people had open; **`misc/`** for tiny one‑off timings; notebooks under **`notebooks/`** mostly for exploratory figures and teaching.
+**Validation** (`validation/`) provides quick parity checks against synthetic tensors, structured traces per branch, SeisBench-window error statistics, timing and memory benchmarks, and optional ONNX export for an extra reference path. Heavy or multi-GPU jobs can be split into documented CLI modules; read the module docstring for the exact flags.
 
-There is also **`methods_tf_to_pt_contribution/`**, a flattened copy packaged for supplementary material (imports renamed to `eqcct_tf_pt_transfer`). Sync it from here when those files drift.
+**Figures for writeups** are produced from saved JSON/NPZ by `scripts/` (matplotlib only), so you can refresh plots without re-running TensorFlow if the data files already exist.
+
+**Optional:** `training/` contains SeisBench-style finetune glue; `misc/` small experiments; `notebooks/` exploratory work. `methods_tf_to_pt_contribution/` is a flattened copy for supplementary material (imports renamed to `eqcct_tf_pt_transfer`).
+
+## Environment
+
+Create a Conda environment from the pinned stack (CPU PyTorch by default; see comments in the file for GPU):
+
+```bash
+conda env create -f environment.yml
+conda activate eqcct2pt
+```
+
+Optional ONNX path (P-model export and ORT check only): `pip install tf2onnx onnx onnxruntime` as described in `validation/p_model_onnx.py`.
+
+TensorFlow and PyTorch together are sensitive to CUDA/driver pairings; if the solve fails on your platform, create a minimal env with your lab’s standard TF+Torch stack, then `pip install seisbench silence-tensorflow` and the conda packages you still need (`h5py`, `matplotlib`, etc.).
 
 ## Quick start
 
+From the repository root:
+
 ```bash
-# From this repository root
 export PYTHONPATH=.
 
-# Fast TensorFlow ⇄ PyTorch check on synthetic input (needs TensorFlow installed)
+# Fast TensorFlow vs PyTorch check on synthetic input (both frameworks required)
 python -m validation.parity_p_model
 
-# Structured weight + activation diff for the P branch
+# Structured weight + activation diff — P branch, then S branch
 python -m validation.tf_pt_p_trace
-
-# Same for the S branch
 python -m validation.tf_pt_s_trace
 ```
 
-SeisBench heavy jobs (large window counts, multiple GPU profiles for timing) expose subcommands alongside these; skim the docstrings at the tops of **`validation/tf_pt_seisbench_dataset_benchmark.py`**, **`tf_pt_perf_benchmark.py`**, **`tf_pt_layer_activations.py`**, etc., for invocation examples.
+Larger studies (SeisBench slices, layer activations, per-window errors, performance JSON) live alongside these modules. Run `python -m validation.<module> --help` for each entry point.
 
-Dependencies are not minimal (TensorFlow, PyTorch, h5py, SeisBench for some paths). Spin up environments the way your lab already prefers; the code assumes you intentionally installed both frameworks when parity matters.
+## Directory map
 
-## Layout
 
-| Path | Role |
-|------|------|
-| `ModelPS/` | Example Keras `.h5` bundles, exported `.pt` checkpoints, pickles when you inherit legacy flows |
-| `paths.py` | `MODELPS_DIR`, `REPO_ROOT` anchors |
-| `models/` | PyTorch architectures you actually ship |
-| `reference/` | TensorFlow counterpart for loaders and benchmarks |
-| `conversion/` | HDF5 flattening, key normalization, coercion into tensors |
-| `validation/` | Parity tooling, ONNX helper, plotting scripts orchestration helpers |
-| `training/` | Finetuning / dataset glue |
-| `scripts/` | Post‑processing JSON / NPZ benchmarks into manuscript figures |
+| Path          | Role                                                                    |
+| ------------- | ----------------------------------------------------------------------- |
+| `ModelPS/`    | Bundled Keras `.h5` checkpoints, exported `.pt` weights, legacy pickles |
+| `paths.py`    | Canonical `MODELPS_DIR`, `REPO_ROOT`                                    |
+| `models/`     | PyTorch EQCCT definitions intended for reuse                            |
+| `reference/`  | TensorFlow/Keras mirror for loading and comparison                      |
+| `conversion/` | HDF5 to `state_dict` loaders and tensor layout helpers                   |
+| `validation/` | Parity, benchmarks, exports, dataset-driven checks                      |
+| `scripts/`    | Manuscript-style plots from `results/*.json` and `results/*.npz`        |
+| `training/`   | Finetuning / dataset utilities                                          |
+| `misc/`       | Small standalone experiments                                            |
+| `notebooks/`  | Exploration and teaching                                                |
 
-## Naming on GitHub
 
-This tree is **`eqcct2pt`‑shaped**: the folders you care about (`conversion`, `validation`, …) surface **directly under the repo root** so cloning on GitHub does not hide everything behind yet another nesting level.
-
-## License / citation
-
-Honor whatever license you attach downstream. Academic users should cite the EQCCT paper and any SeisBench corpora invoked in experiments; add a sentence if you rerun the parity scripts bundled here.
