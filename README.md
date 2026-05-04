@@ -3,20 +3,6 @@
 Seismic research groups train their own phase-picking models using whichever machine learning framework that fits their process workflow, and TensorFlow/Keras remains a popular choice. At the same time, the modern open-source seismology ecosystem has largely standardized around PyTorch, with SeisBench reinforcing this shift by adopting PyTorch as its exclusive framework. This exclusivity creates a practical challenge for researchers who have existing models using other frameworks: how can these models be transferred to PyTorch without retraining? In practice, transferring model weights can be difficult, and without a reliable conversion process, research groups often   
 struggle to integrate their prior work into modern toolkits. In this repository, we document a practical path to **reuse the same weights** in PyTorch: layout rules, loaders, and checks that hold when you point at real EQCCT checkpoints. It is built around **EQCCT’s split design**, a **P-branch** model and a separate **S-branch** model, each with its own checkpoint. This work is part of a larger research paper currently in the publication process. The preprint release can be read [here](Porting%20Institutional%20Phase%20Pickers%20to%20PyTorch%20from%20TensorFlow.pdf).
 
-## How to read this repository
-
-**Model checkpoints and exports** live under `ModelPS/` at the repo root (paired `.h5` Keras bundles and optional `.pt` exports). `paths.py` pins `MODELPS_DIR` and `REPO_ROOT` so scripts and notebooks do not depend on fragile relative paths. The original TensorFlow P model is `test_trainer_024.h5`, and the original S model is `test_trainer_021.h5`.
-
-**Dual implementations:** `models/` defines the PyTorch modules you would ship (`EQCCTModelP`, `EQCCTModelS` and related code). `reference/` holds the TensorFlow/Keras side used to load the original weights and to run numerical comparisons. You will read both when asking whether a layer order still matches after a Keras upgrade.
-
-**Conversion** (`conversion/`) is the main weight transfer system. It includes flattening HDF5 groups, normalizing names, and mapping each weight to the right PyTorch parameter, including the easy-to-get-wrong cases (Conv1d axis order, dense transposes, attention projections).
-
-**Validation** (`validation/`) provides quick parity checks against synthetic tensors, structured traces per branch, SeisBench-window error statistics, timing and memory benchmarks, and optional ONNX export for an extra reference path. Heavy or multi-GPU jobs can be split into documented CLI modules; read the module docstring for the exact flags.
-
-**Figures for writeups** are produced from saved JSON/NPZ by `scripts/` (matplotlib only), so you can refresh plots without re-running TensorFlow if the data files already exist.
-
-**Optional:** `training/` contains SeisBench-style finetune glue; `misc/` small experiments; `notebooks/` exploratory work. `methods_tf_to_pt_contribution/` is a flattened copy for supplementary material (imports renamed to `eqcct_tf_pt_transfer`).
-
 ## Environment
 
 Create a Conda environment from the pinned stack (CPU PyTorch by default; see comments in the file for GPU):
