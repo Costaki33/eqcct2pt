@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """
-Waveform comparison: for each TXED / STEAD figure, stacked **three** panels per trace:
-ZNE waveform (offsets), then P-branch probabilities (TF vs PT), then S-branch.
+Waveform comparison: stacked **three** panels per trace (ZNE waveform, P probabilities,
+S probabilities). By default generates **one combined figure**: STEAD in band **A** (top),
+TXED in band **B** (bottom), letters only, no parentheses.
 
-Writes one PNG per dataset, e.g. ``figures/tf_pt_waveform_overlays_txed.png`` and
-``..._stead.png`` when using default outputs.
+Optional ``--also-split`` also writes legacy single-dataset PNGs (``*_stead.png``, ``*_txed.png``
+next to the combined stem).
 
 Example::
 
   PYTHONPATH=. python -m validation.tf_pt_waveform_compare_figure \\
-    --n-per-dataset 3 --seed 0 --output figures/tf_pt_waveform_overlays.png
+    --n-per-dataset 3 --seed 0
 
-produces ``figures/tf_pt_waveform_overlays_txed.png`` and
-``figures/tf_pt_waveform_overlays_stead.png`` (suffix inserted before ``.png``).
+writes ``figures/tf_pt_waveform_overlays.png``. With ``--output figures/my.png``, combined
+path is ``my.png``, and split files use ``my_stead.png`` / ``my_txed.png`` when
+``--also-split`` is set.
 
 TensorFlow runs on CPU here; CPU/GPU numerical differences are invisible at this scale.
 """
@@ -78,7 +80,12 @@ def main() -> None:
     parser.add_argument("--datasets", type=str, default="txed,stead", help="Comma list")
     parser.add_argument("--n-per-dataset", type=int, default=3)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--output", type=Path, default=None, help="Combined figure path (.png)")
+    parser.add_argument(
+        "--also-split",
+        action="store_true",
+        help="Additionally write STEAD-only and TXED-only PNGs (stem_stead/stem_txed)",
+    )
     args = parser.parse_args()
 
     repo = args.repo or REPO_ROOT
@@ -86,17 +93,15 @@ def main() -> None:
     s_h5 = args.s_h5 or MODELPS_DIR / "test_trainer_021.h5"
     pt_p = args.pt_p or (MODELPS_DIR / "eqcct_model_p.pt")
     pt_s = args.pt_s or (MODELPS_DIR / "eqcct_model_s.pt")
-    if args.output:
-        out_path = args.output
-        stem = out_path.with_suffix("")
-        suf = out_path.suffix or ".png"
-        out_txed = Path(f"{stem}_txed{suf}")
-        out_stead = Path(f"{stem}_stead{suf}")
-    else:
-        figdir = repo / "figures"
-        out_txed = figdir / "tf_pt_waveform_overlays_txed.png"
-        out_stead = figdir / "tf_pt_waveform_overlays_stead.png"
-    out_txed.parent.mkdir(parents=True, exist_ok=True)
+    figdir = repo / "figures"
+    combined_out = args.output if args.output else figdir / "tf_pt_waveform_overlays.png"
+    if combined_out.suffix == "":
+        combined_out = combined_out.with_suffix(".png")
+    stem = combined_out.with_suffix("")
+    suf = combined_out.suffix
+    out_stead_only = Path(f"{stem}_stead{suf}")
+    out_txed_only = Path(f"{stem}_txed{suf}")
+    combined_out.parent.mkdir(parents=True, exist_ok=True)
 
     if str(repo) not in sys.path:
         sys.path.insert(0, str(repo))
@@ -163,10 +168,90 @@ def main() -> None:
         if tag in buckets:
             buckets[tag].append(row)
 
-    def plot_probability_sheet(
-        rows: list[tuple[str, str, np.ndarray, int, int]], out_png: Path, *, label_hint: str
+    def _plot_trace_triplet(
+        ax_w,
+        ax_p,
+        ax_s,
+        cell: tuple[str, str, np.ndarray, int, int],
+        *,
+        blk: int,
+        slot: int,
+        n_blocks: int,
+        ylabel_left: bool,
+        legend_p_here: bool,
+        legend_s_here: bool,
+        xlabel_bottom_s_here: bool,
     ) -> None:
-        """Waveform row + P + S probabilities; ``label_hint`` is TXED or STEAD."""
+        """One trace column: waveform, P prob, S prob."""
+        _dsl, _trace_name, wf, p_in, s_in = cell
+
+        out_p_tf = model_p_tf(wf, training=False)
+        p_tf = out_p_tf.numpy() if hasattr(out_p_tf, "numpy") else np.asarray(out_p_tf)
+        if p_tf.ndim == 3:
+            p_tf = p_tf[..., 0]
+        out_s_tf = model_s_tf(wf, training=False)
+        s_tf = out_s_tf.numpy() if hasattr(out_s_tf, "numpy") else np.asarray(out_s_tf)
+        if s_tf.ndim == 3:
+            s_tf = s_tf[..., 0]
+        with torch.no_grad():
+            p_pt = m_p(torch.from_numpy(wf)).numpy()[..., 0]
+            s_pt = m_s(torch.from_numpy(wf)).numpy()[..., 0]
+
+        d_p = np.abs(p_tf - p_pt).max()
+        d_s = np.abs(s_tf - s_pt).max()
+
+        chan_offsets = (-3.0, 0.0, 3.0)
+        for kc, off in enumerate(chan_offsets):
+            ax_w.plot(wf[0, :, kc] + off, lw=0.5, color="0.15")
+        ax_w.axvline(p_in, color="C0", ls="--", lw=0.9, alpha=0.85)
+        ax_w.axvline(s_in, color="C1", ls="--", lw=0.9, alpha=0.85)
+        ax_w.set_yticks([-3.0, 0.0, 3.0])
+        ax_w.set_yticklabels(["Z", "N", "E"], fontsize=8)
+        ax_w.set_ylim(-6.0, 6.0)
+        ax_w.grid(True, axis="x", alpha=0.25)
+
+        ax_p.plot(p_tf[0], color="#1f77b4", lw=1.0, label="TF P", alpha=0.9)
+        ax_p.plot(p_pt[0], color="#d62728", lw=1.0, ls="--", label="PT P", alpha=0.85)
+        ax_p.axvline(p_in, color="C0", ls=":", lw=0.7, alpha=0.7)
+        ax_p.set_ylim(-0.05, 1.05)
+        if ylabel_left:
+            ax_p.set_ylabel("P probability", fontsize=8)
+        ax_p.text(
+            0.02,
+            0.92,
+            f"max|TF-PT|={d_p:.2e}",
+            transform=ax_p.transAxes,
+            fontsize=7,
+            va="top",
+            bbox=dict(facecolor="white", edgecolor="0.7", alpha=0.85, boxstyle="round,pad=0.18"),
+        )
+        if legend_p_here:
+            ax_p.legend(loc="upper right", fontsize=7)
+        ax_p.grid(True, alpha=0.25)
+
+        ax_s.plot(s_tf[0], color="#1f77b4", lw=1.0, label="TF S", alpha=0.9)
+        ax_s.plot(s_pt[0], color="#d62728", lw=1.0, ls="--", label="PT S", alpha=0.85)
+        ax_s.axvline(s_in, color="C1", ls=":", lw=0.7, alpha=0.7)
+        ax_s.set_ylim(-0.05, 1.05)
+        if ylabel_left:
+            ax_s.set_ylabel("S probability", fontsize=8)
+        if xlabel_bottom_s_here and blk == n_blocks - 1:
+            ax_s.set_xlabel("Sample number", fontsize=8)
+        ax_s.text(
+            0.02,
+            0.92,
+            f"max|TF-PT|={d_s:.2e}",
+            transform=ax_s.transAxes,
+            fontsize=7,
+            va="top",
+            bbox=dict(facecolor="white", edgecolor="0.7", alpha=0.85, boxstyle="round,pad=0.18"),
+        )
+        if legend_s_here:
+            ax_s.legend(loc="upper right", fontsize=7)
+        ax_s.grid(True, alpha=0.25)
+
+    def plot_probability_sheet(rows: list[tuple[str, str, np.ndarray, int, int]], out_png: Path, *, label_hint: str) -> None:
+        """Single-dataset PNG: waveform row + P + S probabilities."""
         n_tr = len(rows)
         if not n_tr:
             print(f"[warn] No traces for {label_hint}; skipped {out_png}")
@@ -180,7 +265,7 @@ def main() -> None:
         fig, axes = plt.subplots(
             n_rows_total, block_cols, figsize=(fig_w, fig_h), sharex=True, constrained_layout=True,
         )
-        if n_rows_total == 1:
+        if n_rows_total == 1 and block_cols > 1:
             axes = axes.reshape(1, -1)
         elif block_cols == 1:
             axes = axes.reshape(-1, 1)
@@ -196,82 +281,115 @@ def main() -> None:
                     axes[row_p, slot].axis("off")
                     axes[row_s, slot].axis("off")
                     continue
-                _dsl, trace_name, wf, p_in, s_in = rows[i]
-
-                out_p_tf = model_p_tf(wf, training=False)
-                p_tf = out_p_tf.numpy() if hasattr(out_p_tf, "numpy") else np.asarray(out_p_tf)
-                if p_tf.ndim == 3:
-                    p_tf = p_tf[..., 0]
-                out_s_tf = model_s_tf(wf, training=False)
-                s_tf = out_s_tf.numpy() if hasattr(out_s_tf, "numpy") else np.asarray(out_s_tf)
-                if s_tf.ndim == 3:
-                    s_tf = s_tf[..., 0]
-                with torch.no_grad():
-                    p_pt = m_p(torch.from_numpy(wf)).numpy()[..., 0]
-                    s_pt = m_s(torch.from_numpy(wf)).numpy()[..., 0]
-
-                d_p = np.abs(p_tf - p_pt).max()
-                d_s = np.abs(s_tf - s_pt).max()
-
-                ax_w = axes[row_w, slot]
-                chan_offsets = (-3.0, 0.0, 3.0)
-                for kc, off in enumerate(chan_offsets):
-                    ax_w.plot(wf[0, :, kc] + off, lw=0.5, color="0.15")
-                ax_w.axvline(p_in, color="C0", ls="--", lw=0.9, alpha=0.85)
-                ax_w.axvline(s_in, color="C1", ls="--", lw=0.9, alpha=0.85)
-                ax_w.set_yticks([-3.0, 0.0, 3.0])
-                ax_w.set_yticklabels(["Z", "N", "E"], fontsize=8)
-                ax_w.set_ylim(-6.0, 6.0)
-                ax_w.grid(True, axis="x", alpha=0.25)
-
-                ax_p = axes[row_p, slot]
-                ax_p.plot(p_tf[0], color="#1f77b4", lw=1.0, label="TF P", alpha=0.9)
-                ax_p.plot(p_pt[0], color="#d62728", lw=1.0, ls="--", label="PT P", alpha=0.85)
-                ax_p.axvline(p_in, color="C0", ls=":", lw=0.7, alpha=0.7)
-                ax_p.set_ylim(-0.05, 1.05)
-                if slot == 0:
-                    ax_p.set_ylabel("P probability", fontsize=8)
-                ax_p.text(
-                    0.02,
-                    0.92,
-                    f"max|TF-PT|={d_p:.2e}",
-                    transform=ax_p.transAxes,
-                    fontsize=7,
-                    va="top",
-                    bbox=dict(facecolor="white", edgecolor="0.7", alpha=0.85, boxstyle="round,pad=0.18"),
+                _plot_trace_triplet(
+                    axes[row_w, slot],
+                    axes[row_p, slot],
+                    axes[row_s, slot],
+                    rows[i],
+                    blk=blk,
+                    slot=slot,
+                    n_blocks=n_blocks,
+                    ylabel_left=(slot == 0),
+                    legend_p_here=(slot == 0 and blk == 0),
+                    legend_s_here=(slot == 0 and blk == 0),
+                    xlabel_bottom_s_here=True,
                 )
-                if slot == 0 and blk == 0:
-                    ax_p.legend(loc="upper right", fontsize=7)
-                ax_p.grid(True, alpha=0.25)
-
-                ax_s = axes[row_s, slot]
-                ax_s.plot(s_tf[0], color="#1f77b4", lw=1.0, label="TF S", alpha=0.9)
-                ax_s.plot(s_pt[0], color="#d62728", lw=1.0, ls="--", label="PT S", alpha=0.85)
-                ax_s.axvline(s_in, color="C1", ls=":", lw=0.7, alpha=0.7)
-                ax_s.set_ylim(-0.05, 1.05)
-                if slot == 0:
-                    ax_s.set_ylabel("S probability", fontsize=8)
-                if blk == n_blocks - 1:
-                    ax_s.set_xlabel("Sample number", fontsize=8)
-                ax_s.text(
-                    0.02,
-                    0.92,
-                    f"max|TF-PT|={d_s:.2e}",
-                    transform=ax_s.transAxes,
-                    fontsize=7,
-                    va="top",
-                    bbox=dict(facecolor="white", edgecolor="0.7", alpha=0.85, boxstyle="round,pad=0.18"),
-                )
-                if slot == 0 and blk == 0:
-                    ax_s.legend(loc="upper right", fontsize=7)
-                ax_s.grid(True, alpha=0.25)
 
         fig.savefig(out_png, dpi=200, bbox_inches="tight")
         plt.close(fig)
         print(f"[info] Wrote ({label_hint})", out_png)
 
-    plot_probability_sheet(buckets["TXED"], out_txed, label_hint="TXED")
-    plot_probability_sheet(buckets["STEAD"], out_stead, label_hint="STEAD")
+    def plot_combined_sheet(out_png: Path) -> None:
+        """STEAD band A (top), TXED band B (bottom); shared column count across bands."""
+        ste = buckets["STEAD"]
+        tx = buckets["TXED"]
+        if not ste and not tx:
+            print("[warn] No STEAD or TXED rows; skipped combined figure")
+            return
+        n_ste = len(ste)
+        n_tx = len(tx)
+        cols = max(1, min(3, max(n_ste or 1, n_tx or 1)))
+        bs_ste = (n_ste + cols - 1) // cols if n_ste else 0
+        bs_tx = (n_tx + cols - 1) // cols if n_tx else 0
+        rs = 3 * bs_ste
+        rt = 3 * bs_tx
+        total_r = rs + rt
+        if total_r == 0:
+            return
+
+        fig_w = 3.5 * cols
+        fig_h = 3.1 * (bs_ste + bs_tx) + 0.6
+        fig, axes = plt.subplots(total_r, cols, figsize=(fig_w, fig_h), sharex="col", constrained_layout=True)
+        if total_r == 1 and cols > 1:
+            axes = axes.reshape(1, -1)
+        elif cols == 1:
+            axes = axes.reshape(-1, 1)
+
+        def fill_band(
+            rows: list[tuple[str, str, np.ndarray, int, int]],
+            row_base: int,
+            panel_letter: str,
+            *,
+            xlabel_on_bottom_s: bool,
+        ) -> None:
+            n_tr_b = len(rows)
+            if not n_tr_b:
+                return
+            n_blocks_b = (n_tr_b + cols - 1) // cols
+            ax_top = axes[row_base, 0]
+            ax_top.text(
+                -0.12,
+                1.02,
+                panel_letter,
+                transform=ax_top.transAxes,
+                fontsize=14,
+                fontweight="bold",
+                clip_on=False,
+                va="bottom",
+                ha="right",
+            )
+            for blk in range(n_blocks_b):
+                for slot in range(cols):
+                    i = blk * cols + slot
+                    row_w = row_base + 3 * blk
+                    row_p = row_w + 1
+                    row_s = row_w + 2
+                    if i >= n_tr_b:
+                        axes[row_w, slot].axis("off")
+                        axes[row_p, slot].axis("off")
+                        axes[row_s, slot].axis("off")
+                        continue
+                    _plot_trace_triplet(
+                        axes[row_w, slot],
+                        axes[row_p, slot],
+                        axes[row_s, slot],
+                        rows[i],
+                        blk=blk,
+                        slot=slot,
+                        n_blocks=n_blocks_b,
+                        ylabel_left=(slot == 0),
+                        legend_p_here=(blk == 0 and slot == 0),
+                        legend_s_here=(blk == 0 and slot == 0),
+                        xlabel_bottom_s_here=xlabel_on_bottom_s,
+                    )
+
+        row0 = 0
+        if ste and tx:
+            fill_band(ste, row0, "A", xlabel_on_bottom_s=False)
+            fill_band(tx, row0 + rs, "B", xlabel_on_bottom_s=True)
+        elif ste:
+            fill_band(ste, 0, "A", xlabel_on_bottom_s=True)
+        elif tx:
+            fill_band(tx, 0, "A", xlabel_on_bottom_s=True)
+
+        fig.savefig(out_png, dpi=200, bbox_inches="tight")
+        plt.close(fig)
+        print("[info] Wrote (combined STEAD A + TXED B)", out_png)
+
+    plot_combined_sheet(combined_out)
+    if args.also_split:
+        plot_probability_sheet(buckets["STEAD"], out_stead_only, label_hint="STEAD")
+        plot_probability_sheet(buckets["TXED"], out_txed_only, label_hint="TXED")
 
 
 if __name__ == "__main__":

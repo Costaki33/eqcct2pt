@@ -23,14 +23,20 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from plot_panel_style import panel_letter, panel_subtitle, SUBPLOTS_ADJUST_2X2_LAYER
+
+
+REPO = Path(__file__).resolve().parents[1]
+
 
 def _clean_log_yaxis(ax) -> None:
     ax.yaxis.set_major_locator(mticker.LogLocator(base=10.0))
     ax.yaxis.set_minor_locator(mticker.NullLocator())
     ax.grid(True, axis="y", which="major", alpha=0.3)
-
-
-REPO = Path(__file__).resolve().parents[1]
 
 
 def _profile_label(name: str) -> str:
@@ -105,7 +111,7 @@ def main() -> None:
         constrained_layout=False,
     )
     # Extra margins + wide row gap between median row (top) and mean row (bottom).
-    fig.subplots_adjust(left=0.09, right=0.96, top=0.90, bottom=0.11, wspace=0.30, hspace=0.50)
+    fig.subplots_adjust(**SUBPLOTS_ADJUST_2X2_LAYER)
 
     n_groups = max(1, 2 * len(results))
     width = 0.8 / n_groups
@@ -122,11 +128,11 @@ def main() -> None:
             error_kw=dict(elinewidth=0.7),
         )
 
-    panel_labels = (
-        "(A) P branch — Median activation discrepancy per checkpoint",
-        "(B) S branch — Median activation discrepancy per checkpoint",
-        "(C) P branch — Mean activation discrepancy per checkpoint",
-        "(D) S branch — Mean activation discrepancy per checkpoint",
+    panel_titles = (
+        "P branch — Median activation discrepancy per checkpoint",
+        "S branch — Median activation discrepancy per checkpoint",
+        "P branch — Mean activation discrepancy per checkpoint",
+        "S branch — Mean activation discrepancy per checkpoint",
     )
 
     # (A) median — P
@@ -145,7 +151,8 @@ def main() -> None:
     ax.set_xticklabels(p_short, rotation=20, ha="right", fontsize=9)
     ax.set_ylabel(r"$\mathrm{median}\;|\mathrm{TF}-\mathrm{PT}|$")
     ax.set_yscale("log")
-    ax.set_title(panel_labels[0], fontsize=10, pad=14)
+    panel_letter(ax, "A")
+    panel_subtitle(ax, panel_titles[0])
     ax.legend(fontsize=8)
     _clean_log_yaxis(ax)
 
@@ -165,7 +172,8 @@ def main() -> None:
     ax.set_xticklabels(s_short, rotation=20, ha="right", fontsize=9)
     ax.set_ylabel(r"$\mathrm{median}\;|\mathrm{TF}-\mathrm{PT}|$")
     ax.set_yscale("log")
-    ax.set_title(panel_labels[1], fontsize=10, pad=14)
+    panel_letter(ax, "B")
+    panel_subtitle(ax, panel_titles[1])
     ax.legend(fontsize=8)
     _clean_log_yaxis(ax)
 
@@ -181,7 +189,8 @@ def main() -> None:
     ax.set_xticklabels(p_short, rotation=20, ha="right", fontsize=9)
     ax.set_ylabel(r"$\mathrm{mean}\;|\mathrm{TF}-\mathrm{PT}|$")
     ax.set_yscale("log")
-    ax.set_title(panel_labels[2], fontsize=10, pad=14)
+    panel_letter(ax, "C")
+    panel_subtitle(ax, panel_titles[2])
     ax.legend(fontsize=8)
     _clean_log_yaxis(ax)
 
@@ -197,7 +206,8 @@ def main() -> None:
     ax.set_xticklabels(s_short, rotation=20, ha="right", fontsize=9)
     ax.set_ylabel(r"$\mathrm{mean}\;|\mathrm{TF}-\mathrm{PT}|$")
     ax.set_yscale("log")
-    ax.set_title(panel_labels[3], fontsize=10, pad=14)
+    panel_letter(ax, "D")
+    panel_subtitle(ax, panel_titles[3])
     ax.legend(fontsize=8)
     _clean_log_yaxis(ax)
 

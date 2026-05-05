@@ -25,6 +25,12 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from plot_panel_style import panel_letter, SUBPLOTS_ADJUST_2X2
+
 REPO = Path(__file__).resolve().parents[1]
 
 # Bottom panels: same legend wording—both compare TF vs PT with P + S models in memory.
@@ -131,7 +137,7 @@ def main() -> None:
     top_colors = ("#2c7bb6", "#d7191c")
 
     fig, axes = plt.subplots(2, 2, figsize=(13.5, 9.2), constrained_layout=False)
-    fig.subplots_adjust(left=0.085, right=0.96, top=0.96, bottom=0.08, wspace=0.32, hspace=0.38)
+    fig.subplots_adjust(**SUBPLOTS_ADJUST_2X2)
 
     n_prof = len(results)
     n_pair = len(top_backends)
@@ -161,6 +167,7 @@ def main() -> None:
     if n_prof > 1:
         ax.axvline(0.5, color="0.5", ls="--", lw=1.0, alpha=0.7)
     ax.legend(h_top, top_labels, loc="upper right", fontsize=8, ncol=1, frameon=True)
+    panel_letter(ax, "A")
 
     # (B) Throughput = inverse total P→S time for that window — consistent with (A).
     ax = axes[0, 1]
@@ -181,6 +188,7 @@ def main() -> None:
     if n_prof > 1:
         ax.axvline(0.5, color="0.5", ls="--", lw=1.0, alpha=0.7)
     ax.legend(h_top, top_labels, loc="upper right", fontsize=8, ncol=1, frameon=True)
+    panel_letter(ax, "B")
 
     # (C) Host RAM deltas — grouped bars
     ax = axes[1, 0]
@@ -201,6 +209,7 @@ def main() -> None:
     ax.grid(True, axis="y", alpha=0.33)
     _headroom_linear(ax)
     ax.legend(loc="upper right", fontsize=8, frameon=True)
+    panel_letter(ax, "C")
 
     # (D) GPU VRAM peaks — grouped bars (single GPU only)
     ax = axes[1, 1]
@@ -230,6 +239,7 @@ def main() -> None:
     ax.set_ylabel("GPU VRAM during inference (MB, peak)")
     ax.grid(True, axis="y", alpha=0.33)
     _headroom_linear(ax)
+    panel_letter(ax, "D")
 
     fig.savefig(out_png, dpi=200, bbox_inches="tight", pad_inches=0.28)
     print("Wrote", out_png)

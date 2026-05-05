@@ -21,6 +21,12 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from plot_panel_style import panel_letter, SUBPLOTS_ADJUST_2X2
+
 
 def _log_decade_ticks(ax, axis: str = "y") -> None:
     """Decade-only major ticks (10^-N), no minor ticks, grid on majors."""
@@ -71,7 +77,7 @@ def main() -> None:
     gpu_s_mae = z[f"{gpu}_s_mae"].astype(np.float64)
 
     fig, axes = plt.subplots(2, 2, figsize=(12.0, 9.0), constrained_layout=False)
-    fig.subplots_adjust(left=0.09, right=0.96, top=0.96, bottom=0.08, wspace=0.30, hspace=0.38)
+    fig.subplots_adjust(**SUBPLOTS_ADJUST_2X2)
 
     # (A) CDF — CPU profile
     ax = axes[0, 0]
@@ -94,8 +100,7 @@ def main() -> None:
             f"P: {pct_p:.1f}% < 1e-6\nS: {pct_s:.1f}% < 1e-6\nN={cpu_p_max.size} windows",
             transform=ax.transAxes, fontsize=9, va="top",
             bbox=dict(facecolor="white", edgecolor="0.7", alpha=0.85, boxstyle="round,pad=0.3"))
-
-    # (B) CDF — GPU profile
+    panel_letter(ax, "A")
     ax = axes[0, 1]
     for vals, color, label in [
         (gpu_p_max, "#1f77b4", "P branch"),
@@ -117,6 +122,7 @@ def main() -> None:
             f"P: {pct_p:.1f}% < 1e-4\nS: {pct_s:.1f}% < 1e-4\nN={gpu_p_max.size} windows",
             transform=ax.transAxes, fontsize=9, va="top",
             bbox=dict(facecolor="white", edgecolor="0.7", alpha=0.85, boxstyle="round,pad=0.3"))
+    panel_letter(ax, "B")
 
     # MAE distributions (violin plot)
     ax = axes[1, 0]
@@ -136,6 +142,7 @@ def main() -> None:
     ax.set_xticklabels(["P\nCPU", "S\nCPU", "P\nGPU", "S\nGPU"], fontsize=9)
     ax.set_ylabel(r"$\log_{10}(\mathrm{MAE})$ per window")
     ax.grid(True, axis="y", alpha=0.3)
+    panel_letter(ax, "C")
 
     # (D) Box plot — MAE |TF−PT| per window
     ax = axes[1, 1]
@@ -160,6 +167,7 @@ def main() -> None:
     ax.set_xticklabels(["P\nCPU", "S\nCPU", "P\nGPU", "S\nGPU"], fontsize=9)
     ax.set_ylabel(r"$\mathrm{MAE}$ per window")
     _log_decade_ticks(ax, axis="y")
+    panel_letter(ax, "D")
 
     fig.savefig(out_png, dpi=200, bbox_inches="tight")
     print("Wrote", out_png)

@@ -1,5 +1,9 @@
 # Conda env for parity checks, conversion, SeisBench validation, and figure scripts.
 #
+# TensorFlow/Keras versions are pinned to match the project's eqcctpro baseline (TF 2.15.1,
+# Keras 2.15.0): newer stacks (TF 2.2x + Keras 3) can load the S HDF5 with different semantics
+# and produce incorrect picks. TF is installed via pip for a reproducible pin.
+#
 # Create:    conda env create -f environment.yml
 #            conda activate eqcct2pt
 # Update:    conda env update -f environment.yml --prune
@@ -8,7 +12,6 @@
 #
 # GPU PyTorch: remove pytorch-cpu and install a CUDA build matching your driver, e.g.
 #   conda install pytorch pytorch-cuda=12.1 -c pytorch -c nvidia
-# then align TensorFlow with your lab’s CUDA policy.
 #
 name: eqcct2pt
 channels:
@@ -16,7 +19,7 @@ channels:
 dependencies:
   - python=3.11
   - pip
-  - numpy>=1.24
+  - numpy>=1.26,<2
   - scipy
   - matplotlib>=3.7
   - h5py
@@ -25,7 +28,8 @@ dependencies:
   - scikit-learn
   - tqdm
   - pytorch-cpu
-  - tensorflow
   - pip:
+    - tensorflow==2.15.1
+    - keras==2.15.0
     - seisbench
     - silence-tensorflow

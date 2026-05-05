@@ -12,6 +12,14 @@ conda env create -f environment.yml
 conda activate eqcct2pt
 ```
 
+TensorFlow **2.15.1** with **Keras 2.15.0** matches the version stack used in our `eqcctpro` baseline and avoids Keras 3 + TensorFlow 2.2x changing Keras model load semantics for the S checkpoint (which showed up as bad TF S picks in some environments). Prefer that pair for parity work:
+
+```bash
+python -m pip install 'numpy>=1.26,<2' 'tensorflow==2.15.1' 'keras==2.15.0'
+```
+
+If your env only needs `import tensorflow`, you can omit the separate `keras` pin; for an ad-hoc env, use **`tensorflow==2.15.1`** (not `tensorflow>=2.21`) unless you intentionally re-verify weights on a newer stack.
+
 Optional ONNX path (P-model export and ORT check only): `pip install tf2onnx onnx onnxruntime` as described in `validation/p_model_onnx.py`.
 
 TensorFlow and PyTorch together are sensitive to CUDA/driver pairings; if the solve fails on your platform, create a minimal env with your lab’s standard TF+Torch stack, then `pip install seisbench silence-tensorflow` and the conda packages you still need (`h5py`, `matplotlib`, etc.).
