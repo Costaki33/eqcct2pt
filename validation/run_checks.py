@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 def main() -> int:
-    root = Path(__file__).resolve().parents[2]
+    root = Path(__file__).resolve().parents[1]
     env = {**os.environ, "PYTHONPATH": str(root)}
     steps = [
         [sys.executable, "-m", "validation.parity_p_model"],

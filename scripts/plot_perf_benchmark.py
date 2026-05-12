@@ -180,7 +180,7 @@ def main() -> None:
 
     ax.set_xticks(np.arange(n_prof))
     ax.set_xticklabels(labels)
-    ax.set_ylabel(r"Throughput (windows$\,$s$^{-1}$)")
+    ax.set_ylabel("Throughput (windows/s)")
     ax.set_yscale("log")
     _clean_log_yaxis(ax)
     _headroom_log(ax, factor=3.2)

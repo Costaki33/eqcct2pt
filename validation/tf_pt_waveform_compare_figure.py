@@ -140,6 +140,7 @@ def main() -> None:
 
     ds_names = [d.strip().lower() for d in args.datasets.split(",") if d.strip()]
     sample_rate = 100
+    sec_per_sample = 1.0 / sample_rate  # 0.01 s per sample at 100 Hz
 
     selected: list[tuple[str, str, np.ndarray, int, int]] = []
     for ds_label in ds_names:
@@ -200,19 +201,25 @@ def main() -> None:
         d_p = np.abs(p_tf - p_pt).max()
         d_s = np.abs(s_tf - s_pt).max()
 
+        # Time axis in seconds (100 Hz = 0.01 s per sample)
+        n_samples = wf.shape[1]
+        time_s = np.arange(n_samples) * sec_per_sample
+        p_in_s = p_in * sec_per_sample
+        s_in_s = s_in * sec_per_sample
+
         chan_offsets = (-3.0, 0.0, 3.0)
         for kc, off in enumerate(chan_offsets):
-            ax_w.plot(wf[0, :, kc] + off, lw=0.5, color="0.15")
-        ax_w.axvline(p_in, color="C0", ls="--", lw=0.9, alpha=0.85)
-        ax_w.axvline(s_in, color="C1", ls="--", lw=0.9, alpha=0.85)
+            ax_w.plot(time_s, wf[0, :, kc] + off, lw=0.5, color="0.15")
+        ax_w.axvline(p_in_s, color="C0", ls="--", lw=0.9, alpha=0.85)
+        ax_w.axvline(s_in_s, color="C1", ls="--", lw=0.9, alpha=0.85)
         ax_w.set_yticks([-3.0, 0.0, 3.0])
         ax_w.set_yticklabels(["Z", "N", "E"], fontsize=8)
         ax_w.set_ylim(-6.0, 6.0)
         ax_w.grid(True, axis="x", alpha=0.25)
 
-        ax_p.plot(p_tf[0], color="#1f77b4", lw=1.0, label="TF P", alpha=0.9)
-        ax_p.plot(p_pt[0], color="#d62728", lw=1.0, ls="--", label="PT P", alpha=0.85)
-        ax_p.axvline(p_in, color="C0", ls=":", lw=0.7, alpha=0.7)
+        ax_p.plot(time_s, p_tf[0], color="#1f77b4", lw=1.0, label="TF P", alpha=0.9)
+        ax_p.plot(time_s, p_pt[0], color="#d62728", lw=1.0, ls="--", label="PT P", alpha=0.85)
+        ax_p.axvline(p_in_s, color="C0", ls=":", lw=0.7, alpha=0.7)
         ax_p.set_ylim(-0.05, 1.05)
         if ylabel_left:
             ax_p.set_ylabel("P probability", fontsize=8)
@@ -229,14 +236,14 @@ def main() -> None:
             ax_p.legend(loc="upper right", fontsize=7)
         ax_p.grid(True, alpha=0.25)
 
-        ax_s.plot(s_tf[0], color="#1f77b4", lw=1.0, label="TF S", alpha=0.9)
-        ax_s.plot(s_pt[0], color="#d62728", lw=1.0, ls="--", label="PT S", alpha=0.85)
-        ax_s.axvline(s_in, color="C1", ls=":", lw=0.7, alpha=0.7)
+        ax_s.plot(time_s, s_tf[0], color="#1f77b4", lw=1.0, label="TF S", alpha=0.9)
+        ax_s.plot(time_s, s_pt[0], color="#d62728", lw=1.0, ls="--", label="PT S", alpha=0.85)
+        ax_s.axvline(s_in_s, color="C1", ls=":", lw=0.7, alpha=0.7)
         ax_s.set_ylim(-0.05, 1.05)
         if ylabel_left:
             ax_s.set_ylabel("S probability", fontsize=8)
         if xlabel_bottom_s_here and blk == n_blocks - 1:
-            ax_s.set_xlabel("Sample number", fontsize=8)
+            ax_s.set_xlabel("Time (s)", fontsize=8)
         ax_s.text(
             0.02,
             0.92,

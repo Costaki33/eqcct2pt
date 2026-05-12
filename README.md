@@ -48,13 +48,10 @@ Larger studies (SeisBench slices, layer activations, per-window errors, performa
 | ------------- | ----------------------------------------------------------------------- |
 | `ModelPS/`    | Bundled Keras `.h5` checkpoints, exported `.pt` weights, legacy pickles |
 | `paths.py`    | Canonical `MODELPS_DIR`, `REPO_ROOT`                                    |
-| `models/`     | PyTorch EQCCT definitions intended for reuse                            |
+| `models/`     | Canonical PyTorch EQCCT implementation (`predictor_pt_p`)                |
 | `reference/`  | TensorFlow/Keras mirror for loading and comparison                      |
-| `conversion/` | HDF5 to `state_dict` loaders and tensor layout helpers                   |
-| `validation/` | Parity, benchmarks, exports, dataset-driven checks                      |
+| `conversion/` | HDF5 to `state_dict` loaders (`loader.py`, `catalog.py`, pickle path via `transfer_weights_legacy.py`) |
+| `validation/` | Parity, benchmarks, exports, dataset-driven checks                    |
 | `scripts/`    | Manuscript-style plots from `results/*.json` and `results/*.npz`        |
-| `training/`   | Finetuning / dataset utilities                                          |
-| `misc/`       | Small standalone experiments                                            |
-| `notebooks/`  | Exploration and teaching                                                |
 
 
