@@ -168,7 +168,7 @@ def main(argv=None) -> int:
         import torch
 
         from conversion.loader import load_eqcct_model_p_weights
-        from models.predictor_pt_p import EQCCTModelP
+        from models.eqcct import EQCCTModelP
 
         m = EQCCTModelP()
         load_eqcct_model_p_weights(m, h5_path=str(p_h5))

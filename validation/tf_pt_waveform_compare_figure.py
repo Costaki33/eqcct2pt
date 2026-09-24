@@ -7,10 +7,14 @@ TXED in band **B** (bottom), letters only, no parentheses.
 Optional ``--also-split`` also writes legacy single-dataset PNGs (``*_stead.png``, ``*_txed.png``
 next to the combined stem).
 
-Example::
+Pass ``--residual-npz results/residual_vs_arrival_cpu.npz`` to append panel **C**:
+mean |TF − PT| versus time relative to the catalog arrival, stacked over many windows.
+
+    Example::
 
   PYTHONPATH=. python -m validation.tf_pt_waveform_compare_figure \\
-    --n-per-dataset 3 --seed 0
+    --n-per-dataset 3 --seed 0 \\
+    --residual-npz results/residual_vs_arrival_cpu.npz
 
 writes ``figures/tf_pt_waveform_overlays.png``. With ``--output figures/my.png``, combined
 path is ``my.png``, and split files use ``my_stead.png`` / ``my_txed.png`` when
@@ -28,6 +32,12 @@ from pathlib import Path
 import numpy as np
 
 from paths import MODELPS_DIR, REPO_ROOT
+
+try:
+    import matplotlib as mpl
+    mpl.rcParams.update({"xtick.labelsize": 10, "ytick.labelsize": 10})
+except Exception:
+    pass
 
 
 def norm_std_time(x: np.ndarray) -> np.ndarray:
@@ -86,6 +96,14 @@ def main() -> None:
         action="store_true",
         help="Additionally write STEAD-only and TXED-only PNGs (stem_stead/stem_txed)",
     )
+    parser.add_argument(
+        "--residual-npz",
+        type=Path,
+        default=None,
+        help="NPZ from validation.tf_pt_residual_vs_arrival; adds panel C under A/B",
+    )
+    parser.add_argument("--residual-profile", type=str, default="cpu")
+    parser.add_argument("--residual-xlim-s", type=float, default=30.0)
     args = parser.parse_args()
 
     repo = args.repo or REPO_ROOT
@@ -116,7 +134,7 @@ def main() -> None:
         pass
 
     from reference.predictor_tf import load_eqcct_model
-    from models.predictor_pt_p import EQCCTModelP, EQCCTModelS
+    from models.eqcct import EQCCTModelP, EQCCTModelS
     from conversion.loader import load_eqcct_model_p_weights, load_eqcct_model_s_weights
 
     model_p_tf, model_s_tf = load_eqcct_model(str(p_h5), str(s_h5))
@@ -207,13 +225,13 @@ def main() -> None:
         p_in_s = p_in * sec_per_sample
         s_in_s = s_in * sec_per_sample
 
-        chan_offsets = (-3.0, 0.0, 3.0)
+        chan_offsets = (3.0, 0.0, -3.0)  # Z top, N middle, E bottom (matches ZNE caption)
         for kc, off in enumerate(chan_offsets):
             ax_w.plot(time_s, wf[0, :, kc] + off, lw=0.5, color="0.15")
         ax_w.axvline(p_in_s, color="C0", ls="--", lw=0.9, alpha=0.85)
         ax_w.axvline(s_in_s, color="C1", ls="--", lw=0.9, alpha=0.85)
-        ax_w.set_yticks([-3.0, 0.0, 3.0])
-        ax_w.set_yticklabels(["Z", "N", "E"], fontsize=8)
+        ax_w.set_yticks([3.0, 0.0, -3.0])
+        ax_w.set_yticklabels(["Z", "N", "E"], fontsize=11)
         ax_w.set_ylim(-6.0, 6.0)
         ax_w.grid(True, axis="x", alpha=0.25)
 
@@ -222,18 +240,18 @@ def main() -> None:
         ax_p.axvline(p_in_s, color="C0", ls=":", lw=0.7, alpha=0.7)
         ax_p.set_ylim(-0.05, 1.05)
         if ylabel_left:
-            ax_p.set_ylabel("P probability", fontsize=8)
+            ax_p.set_ylabel("P prob.", fontsize=11)
         ax_p.text(
             0.02,
             0.92,
             f"max|TF-PT|={d_p:.2e}",
             transform=ax_p.transAxes,
-            fontsize=7,
+            fontsize=10,
             va="top",
             bbox=dict(facecolor="white", edgecolor="0.7", alpha=0.85, boxstyle="round,pad=0.18"),
         )
         if legend_p_here:
-            ax_p.legend(loc="upper right", fontsize=7)
+            ax_p.legend(loc="upper right", fontsize=10)
         ax_p.grid(True, alpha=0.25)
 
         ax_s.plot(time_s, s_tf[0], color="#1f77b4", lw=1.0, label="TF S", alpha=0.9)
@@ -241,20 +259,20 @@ def main() -> None:
         ax_s.axvline(s_in_s, color="C1", ls=":", lw=0.7, alpha=0.7)
         ax_s.set_ylim(-0.05, 1.05)
         if ylabel_left:
-            ax_s.set_ylabel("S probability", fontsize=8)
+            ax_s.set_ylabel("S prob.", fontsize=11)
         if xlabel_bottom_s_here and blk == n_blocks - 1:
-            ax_s.set_xlabel("Time (s)", fontsize=8)
+            ax_s.set_xlabel("Time (s)", fontsize=11)
         ax_s.text(
             0.02,
             0.92,
             f"max|TF-PT|={d_s:.2e}",
             transform=ax_s.transAxes,
-            fontsize=7,
+            fontsize=10,
             va="top",
             bbox=dict(facecolor="white", edgecolor="0.7", alpha=0.85, boxstyle="round,pad=0.18"),
         )
         if legend_s_here:
-            ax_s.legend(loc="upper right", fontsize=7)
+            ax_s.legend(loc="upper right", fontsize=10)
         ax_s.grid(True, alpha=0.25)
 
     def plot_probability_sheet(rows: list[tuple[str, str, np.ndarray, int, int]], out_png: Path, *, label_hint: str) -> None:
@@ -302,12 +320,12 @@ def main() -> None:
                     xlabel_bottom_s_here=True,
                 )
 
-        fig.savefig(out_png, dpi=200, bbox_inches="tight")
+        fig.savefig(out_png, dpi=300, bbox_inches="tight")
         plt.close(fig)
         print(f"[info] Wrote ({label_hint})", out_png)
 
     def plot_combined_sheet(out_png: Path) -> None:
-        """STEAD band A (top), TXED band B (bottom); shared column count across bands."""
+        """STEAD band A (top), TXED band B, optional residual panel C."""
         ste = buckets["STEAD"]
         tx = buckets["TXED"]
         if not ste and not tx:
@@ -320,17 +338,27 @@ def main() -> None:
         bs_tx = (n_tx + cols - 1) // cols if n_tx else 0
         rs = 3 * bs_ste
         rt = 3 * bs_tx
-        total_r = rs + rt
+        has_c = args.residual_npz is not None and args.residual_npz.is_file()
+        total_r = rs + rt + (1 if has_c else 0)
         if total_r == 0:
             return
 
         fig_w = 3.5 * cols
-        fig_h = 3.1 * (bs_ste + bs_tx) + 0.6
-        fig, axes = plt.subplots(total_r, cols, figsize=(fig_w, fig_h), sharex="col", constrained_layout=True)
-        if total_r == 1 and cols > 1:
-            axes = axes.reshape(1, -1)
-        elif cols == 1:
-            axes = axes.reshape(-1, 1)
+        fig_h = 3.1 * (bs_ste + bs_tx) + (2.6 if has_c else 0.0) + 0.6
+        fig = plt.figure(figsize=(fig_w, fig_h), constrained_layout=True)
+        # GridSpec: example bands use cols; panel C spans all columns
+        height_ratios = [1.0] * (rs + rt) + ([1.35] if has_c else [])
+        gs = fig.add_gridspec(total_r, cols, height_ratios=height_ratios)
+        axes = np.empty((total_r, cols), dtype=object)
+        for r in range(rs + rt):
+            for c in range(cols):
+                sharex = axes[0, c] if r > 0 else None
+                axes[r, c] = fig.add_subplot(gs[r, c], sharex=sharex)
+        ax_c = None
+        if has_c:
+            ax_c = fig.add_subplot(gs[rs + rt, :])
+            for c in range(cols):
+                axes[rs + rt, c] = ax_c
 
         def fill_band(
             rows: list[tuple[str, str, np.ndarray, int, int]],
@@ -344,10 +372,13 @@ def main() -> None:
                 return
             n_blocks_b = (n_tr_b + cols - 1) // cols
             ax_top = axes[row_base, 0]
+            # Panel letter + dataset name (A = STEAD, B = TXED)
+            band_name = "STEAD" if panel_letter == "A" else ("TXED" if panel_letter == "B" else "")
+            label = panel_letter if not band_name else f"{panel_letter}  {band_name}"
             ax_top.text(
                 -0.12,
                 1.02,
-                panel_letter,
+                label,
                 transform=ax_top.transAxes,
                 fontsize=14,
                 fontweight="bold",
@@ -383,15 +414,22 @@ def main() -> None:
         row0 = 0
         if ste and tx:
             fill_band(ste, row0, "A", xlabel_on_bottom_s=False)
-            fill_band(tx, row0 + rs, "B", xlabel_on_bottom_s=True)
+            fill_band(tx, row0 + rs, "B", xlabel_on_bottom_s=not has_c)
         elif ste:
-            fill_band(ste, 0, "A", xlabel_on_bottom_s=True)
+            fill_band(ste, 0, "A", xlabel_on_bottom_s=not has_c)
         elif tx:
-            fill_band(tx, 0, "A", xlabel_on_bottom_s=True)
+            fill_band(tx, 0, "A", xlabel_on_bottom_s=not has_c)
 
-        fig.savefig(out_png, dpi=200, bbox_inches="tight")
+        if has_c and ax_c is not None:
+            sys.path.insert(0, str(repo / "scripts"))
+            from plot_residual_vs_arrival import load_profile, plot_residual_axes
+
+            data = load_profile(args.residual_npz, args.residual_profile)
+            plot_residual_axes(ax_c, data, xlim_s=args.residual_xlim_s, letter="C")
+
+        fig.savefig(out_png, dpi=300, bbox_inches="tight")
         plt.close(fig)
-        print("[info] Wrote (combined STEAD A + TXED B)", out_png)
+        print("[info] Wrote (combined STEAD A + TXED B" + (" + residual C" if has_c else "") + ")", out_png)
 
     plot_combined_sheet(combined_out)
     if args.also_split:

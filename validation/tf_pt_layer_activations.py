@@ -89,9 +89,13 @@ def run_profile(
             tf.config.set_visible_devices([], "GPU")
         except Exception:
             pass
+    elif os.environ.get("EQCCT_ALLOW_TF32", "").lower() not in ("1", "true", "yes"):
+        from validation.precision import configure_tf32
+
+        configure_tf32(disable=True)
 
     from reference.predictor_tf import load_eqcct_model
-    from models.predictor_pt_p import EQCCTModelP, EQCCTModelS
+    from models.eqcct import EQCCTModelP, EQCCTModelS
     from conversion.loader import load_eqcct_model_p_weights, load_eqcct_model_s_weights
     from validation.tf_pt_p_trace import _TF_ACTIVATION_STAGES as P_STAGES
     from validation.tf_pt_s_trace import _TF_ACTIVATION_STAGES as S_STAGES
@@ -118,6 +122,8 @@ def run_profile(
         per_seed_max: dict[str, list[float]] = {st.key: [] for st in stages}
         per_seed_mean: dict[str, list[float]] = {st.key: [] for st in stages}
         per_seed_med: dict[str, list[float]] = {st.key: [] for st in stages}
+        per_seed_tf_max: dict[str, list[float]] = {st.key: [] for st in stages}
+        per_seed_tf_mean: dict[str, list[float]] = {st.key: [] for st in stages}
         for seed in range(n_seeds):
             rng = np.random.default_rng(seed)
             x = rng.standard_normal((1, 6000, 3)).astype(np.float32)
@@ -138,16 +144,23 @@ def run_profile(
                     per_seed_max[st.key].append(float("nan"))
                     per_seed_mean[st.key].append(float("nan"))
                     per_seed_med[st.key].append(float("nan"))
+                    per_seed_tf_max[st.key].append(float("nan"))
+                    per_seed_tf_mean[st.key].append(float("nan"))
                     continue
                 d = np.abs(a - b)
                 flat = d.reshape(-1)
                 per_seed_max[st.key].append(float(d.max()))
                 per_seed_mean[st.key].append(float(d.mean()))
                 per_seed_med[st.key].append(float(np.median(flat)))
+                ta = np.abs(a)
+                per_seed_tf_max[st.key].append(float(ta.max()))
+                per_seed_tf_mean[st.key].append(float(ta.mean()))
         for st in stages:
             mx = np.asarray(per_seed_max[st.key])
             me = np.asarray(per_seed_mean[st.key])
             md = np.asarray(per_seed_med[st.key])
+            tmx = np.asarray(per_seed_tf_max[st.key])
+            tme = np.asarray(per_seed_tf_mean[st.key])
             out.append({
                 "key": st.key,
                 "short": _short_name(st.key),
@@ -159,6 +172,10 @@ def run_profile(
                 "median_abs_diff_std": float(np.nanstd(md, ddof=1)) if md.size > 1 else 0.0,
                 "mean_abs_diff_mean": float(np.nanmean(me)),
                 "mean_abs_diff_std": float(np.nanstd(me, ddof=1)) if me.size > 1 else 0.0,
+                "tf_abs_max_mean": float(np.nanmean(tmx)),
+                "tf_abs_max_std": float(np.nanstd(tmx, ddof=1)) if tmx.size > 1 else 0.0,
+                "tf_abs_mean_mean": float(np.nanmean(tme)),
+                "tf_abs_mean_std": float(np.nanstd(tme, ddof=1)) if tme.size > 1 else 0.0,
                 "n_seeds": int(mx.size),
             })
         return out

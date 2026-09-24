@@ -29,7 +29,13 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from plot_panel_style import panel_letter, SUBPLOTS_ADJUST_2X2
+from plot_panel_style import (
+    FIG_SAVE_DPI,
+    FONT_ANNOTATION,
+    apply_manuscript_style,
+    panel_letter,
+    SUBPLOTS_ADJUST_2X2,
+)
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -49,7 +55,7 @@ def _headroom_log(ax, factor: float = 3.0) -> None:
     ax.set_ylim(lo, hi * factor)
 
 
-def _headroom_linear(ax, factor: float = 1.18) -> None:
+def _headroom_linear(ax, factor: float = 1.30) -> None:
     lo, hi = ax.get_ylim()
     ax.set_ylim(max(0, lo * 0.98), hi * factor)
 
@@ -120,6 +126,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     out_png = out_dir / "tf_pt_perf_benchmark.png"
 
+    apply_manuscript_style()
     payload = json.loads(in_path.read_text())
     all_results = payload["results"]
     # Filter: keep CPU and only the first GPU (gpu0) — call it just "GPU"
@@ -137,7 +144,9 @@ def main() -> None:
     top_colors = ("#2c7bb6", "#d7191c")
 
     fig, axes = plt.subplots(2, 2, figsize=(13.5, 9.2), constrained_layout=False)
-    fig.subplots_adjust(**SUBPLOTS_ADJUST_2X2)
+    adj = dict(SUBPLOTS_ADJUST_2X2)
+    adj["left"] = 0.105
+    fig.subplots_adjust(**adj)
 
     n_prof = len(results)
     n_pair = len(top_backends)
@@ -166,7 +175,7 @@ def main() -> None:
     ax.set_xlim(-0.55, n_prof - 0.45 + 0.05)
     if n_prof > 1:
         ax.axvline(0.5, color="0.5", ls="--", lw=1.0, alpha=0.7)
-    ax.legend(h_top, top_labels, loc="upper right", fontsize=8, ncol=1, frameon=True)
+    ax.legend(h_top, top_labels, loc="upper right", ncol=1, frameon=True)
     panel_letter(ax, "A")
 
     # (B) Throughput = inverse total P→S time for that window — consistent with (A).
@@ -187,7 +196,7 @@ def main() -> None:
     ax.set_xlim(-0.55, n_prof - 0.45 + 0.05)
     if n_prof > 1:
         ax.axvline(0.5, color="0.5", ls="--", lw=1.0, alpha=0.7)
-    ax.legend(h_top, top_labels, loc="upper right", fontsize=8, ncol=1, frameon=True)
+    ax.legend(h_top, top_labels, loc="upper right", ncol=1, frameon=True)
     panel_letter(ax, "B")
 
     # (C) Host RAM deltas — grouped bars
@@ -200,15 +209,15 @@ def main() -> None:
     ax.bar(x_tf, rss_tf, width=ram_bar_w, label=MEM_TF_LEGEND, color="#2c7bb6", edgecolor="0.28", linewidth=0.6, alpha=0.88)
     ax.bar(x_pt, rss_pt, width=ram_bar_w, label=MEM_PT_LEGEND, color="#d7191c", edgecolor="0.28", linewidth=0.6, alpha=0.88)
     for xi, v in zip(x_tf, rss_tf):
-        ax.text(float(xi), v, f"{v:.0f}", ha="center", va="bottom", fontsize=8, color="0.25")
+        ax.text(float(xi), v, f"{v:.0f}", ha="center", va="bottom", fontsize=FONT_ANNOTATION, color="0.25")
     for xi, v in zip(x_pt, rss_pt):
-        ax.text(float(xi), v, f"{v:.0f}", ha="center", va="bottom", fontsize=8, color="0.25")
+        ax.text(float(xi), v, f"{v:.0f}", ha="center", va="bottom", fontsize=FONT_ANNOTATION, color="0.25")
     ax.set_xticks(np.arange(n_prof))
     ax.set_xticklabels(labels)
-    ax.set_ylabel("Host RAM increase after model load (MB, RSS Δ)")
+    ax.set_ylabel(r"Host RAM increase on load (MB, $\Delta$RSS)")
     ax.grid(True, axis="y", alpha=0.33)
     _headroom_linear(ax)
-    ax.legend(loc="upper right", fontsize=8, frameon=True)
+    ax.legend(loc="upper left", frameon=True)
     panel_letter(ax, "C")
 
     # (D) GPU VRAM peaks — grouped bars (single GPU only)
@@ -223,25 +232,20 @@ def main() -> None:
         bar_colors = ["#2c7bb6", "#d7191c"]
         ax.bar(bar_x, bar_vals, width=0.55, color=bar_colors, edgecolor="0.28", linewidth=0.6, alpha=0.88)
         for xi, v in zip(bar_x, bar_vals):
-            ax.text(float(xi), v, f"{v:.1f}", ha="center", va="bottom", fontsize=9, color="0.25")
+            ax.text(float(xi), v, f"{v:.1f}", ha="center", va="bottom", fontsize=FONT_ANNOTATION, color="0.25")
         ax.set_xticks(bar_x)
-        ax.set_xticklabels(["TF", "PT"], fontsize=9)
+        ax.set_xticklabels(["TF", "PT"])
         ax.set_xlim(-0.6, 1.6)
-        h = [
-            plt.Rectangle((0, 0), 1, 1, fc=bar_colors[0], ec="0.28", alpha=0.88),
-            plt.Rectangle((0, 0), 1, 1, fc=bar_colors[1], ec="0.28", alpha=0.88),
-        ]
-        ax.legend(h, [MEM_TF_LEGEND, MEM_PT_LEGEND], loc="upper right", fontsize=8, frameon=True)
     else:
         ax.text(0.5, 0.5, "No GPU profiles in this run", ha="center", va="center", transform=ax.transAxes)
         ax.set_xticks([])
 
-    ax.set_ylabel("GPU VRAM during inference (MB, peak)")
+    ax.set_ylabel("Peak GPU VRAM during inference (MB)")
     ax.grid(True, axis="y", alpha=0.33)
     _headroom_linear(ax)
     panel_letter(ax, "D")
 
-    fig.savefig(out_png, dpi=200, bbox_inches="tight", pad_inches=0.28)
+    fig.savefig(out_png, dpi=FIG_SAVE_DPI, bbox_inches="tight", pad_inches=0.28)
     print("Wrote", out_png)
 
 

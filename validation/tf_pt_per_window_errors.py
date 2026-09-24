@@ -93,6 +93,16 @@ def run_profile(
     import tensorflow as tf
     import torch
 
+    # GPU manuscript runs: disable TF32 (matmul + cudnn + TF) unless overridden.
+    if not tf_device.startswith("/CPU") and os.environ.get("EQCCT_ALLOW_TF32", "").lower() not in (
+        "1",
+        "true",
+        "yes",
+    ):
+        from validation.precision import configure_tf32
+
+        configure_tf32(disable=True)
+
     if tf_device.startswith("/CPU"):
         try:
             tf.config.set_visible_devices([], "GPU")
@@ -100,7 +110,7 @@ def run_profile(
             pass
 
     from reference.predictor_tf import load_eqcct_model
-    from models.predictor_pt_p import EQCCTModelP, EQCCTModelS
+    from models.eqcct import EQCCTModelP, EQCCTModelS
     from conversion.loader import load_eqcct_model_p_weights, load_eqcct_model_s_weights
 
     model_p_tf, model_s_tf = load_eqcct_model(str(p_h5), str(s_h5))
@@ -131,11 +141,47 @@ def run_profile(
 
     mae_p_list: list[float] = []
     mae_s_list: list[float] = []
+    mse_p_list: list[float] = []
+    mse_s_list: list[float] = []
     max_p_list: list[float] = []
     max_s_list: list[float] = []
     med_p_list: list[float] = []
     med_s_list: list[float] = []
     src_dataset: list[str] = []
+    batch_size = int(os.environ.get("EQCCT_PER_WINDOW_BATCH", "8"))
+
+    def flush(wfs: list[np.ndarray], ds_labels: list[str]) -> None:
+        if not wfs:
+            return
+        batch = np.concatenate(wfs, axis=0)  # (B, T, 3)
+        p_tf_t = model_p_tf(tf.constant(batch, dtype=tf.float32), training=False)
+        s_tf_t = model_s_tf(tf.constant(batch, dtype=tf.float32), training=False)
+        p_tf = p_tf_t.numpy() if hasattr(p_tf_t, "numpy") else np.asarray(p_tf_t)
+        s_tf = s_tf_t.numpy() if hasattr(s_tf_t, "numpy") else np.asarray(s_tf_t)
+        if p_tf.ndim == 3:
+            p_tf = p_tf[..., 0]
+        if s_tf.ndim == 3:
+            s_tf = s_tf[..., 0]
+        with torch.no_grad():
+            x_pt = torch.from_numpy(batch).to(torch_device)
+            p_pt = m_p(x_pt).detach().cpu().numpy()
+            s_pt = m_s(x_pt).detach().cpu().numpy()
+            if p_pt.ndim == 3:
+                p_pt = p_pt[..., 0]
+            if s_pt.ndim == 3:
+                s_pt = s_pt[..., 0]
+        for i, ds_lab in enumerate(ds_labels):
+            d_p = np.abs(p_tf[i] - p_pt[i]).ravel()
+            d_s = np.abs(s_tf[i] - s_pt[i]).ravel()
+            mae_p_list.append(float(d_p.mean()))
+            mae_s_list.append(float(d_s.mean()))
+            mse_p_list.append(float(np.mean(d_p**2)))
+            mse_s_list.append(float(np.mean(d_s**2)))
+            max_p_list.append(float(d_p.max()))
+            max_s_list.append(float(d_s.max()))
+            med_p_list.append(float(np.median(d_p)))
+            med_s_list.append(float(np.median(d_s)))
+            src_dataset.append(ds_lab)
 
     for ds_name in datasets:
         if ds_name.lower() == "txed":
@@ -152,6 +198,8 @@ def run_profile(
         if max_windows:
             indices = indices[:max_windows]
 
+        buf_wf: list[np.ndarray] = []
+        buf_ds: list[str] = []
         for j in tqdm(indices, desc=f"{profile}/{ds_name}", file=sys.stdout):
             row = sub.iloc[j]
             try:
@@ -162,36 +210,37 @@ def run_profile(
                 continue
             if wf is None:
                 continue
-            try:
-                p_tf_t = model_p_tf(tf.constant(wf, dtype=tf.float32), training=False)
-                s_tf_t = model_s_tf(tf.constant(wf, dtype=tf.float32), training=False)
-                p_tf = p_tf_t.numpy() if hasattr(p_tf_t, "numpy") else np.asarray(p_tf_t)
-                s_tf = s_tf_t.numpy() if hasattr(s_tf_t, "numpy") else np.asarray(s_tf_t)
-                if p_tf.ndim == 3:
-                    p_tf = p_tf[..., 0]
-                if s_tf.ndim == 3:
-                    s_tf = s_tf[..., 0]
-                with torch.no_grad():
-                    x_pt = torch.from_numpy(wf).to(torch_device)
-                    p_pt = m_p(x_pt).detach().cpu().numpy()[..., 0]
-                    s_pt = m_s(x_pt).detach().cpu().numpy()[..., 0]
-            except Exception:
-                continue
-            d_p = np.abs(p_tf - p_pt).ravel()
-            d_s = np.abs(s_tf - s_pt).ravel()
-            mae_p_list.append(float(d_p.mean()))
-            mae_s_list.append(float(d_s.mean()))
-            max_p_list.append(float(d_p.max()))
-            max_s_list.append(float(d_s.max()))
-            med_p_list.append(float(np.median(d_p)))
-            med_s_list.append(float(np.median(d_s)))
-            src_dataset.append(ds_name)
+            buf_wf.append(wf)
+            buf_ds.append(ds_name)
+            if len(buf_wf) >= batch_size:
+                try:
+                    flush(buf_wf, buf_ds)
+                except Exception as exc:
+                    print(f"[warn] batch flush failed ({len(buf_wf)} windows): {exc!r}", flush=True)
+                    # Fall back to single-window inference so a bad batch does not drop data.
+                    for wf_i, ds_i in zip(buf_wf, buf_ds):
+                        try:
+                            flush([wf_i], [ds_i])
+                        except Exception as exc2:
+                            print(f"[warn] single-window flush failed: {exc2!r}", flush=True)
+                buf_wf, buf_ds = [], []
+        try:
+            flush(buf_wf, buf_ds)
+        except Exception as exc:
+            print(f"[warn] final flush failed ({len(buf_wf)} windows): {exc!r}", flush=True)
+            for wf_i, ds_i in zip(buf_wf, buf_ds):
+                try:
+                    flush([wf_i], [ds_i])
+                except Exception as exc2:
+                    print(f"[warn] single-window flush failed: {exc2!r}", flush=True)
 
     return {
         "profile": profile,
         "n_windows": len(mae_p_list),
         "mae_p": np.asarray(mae_p_list, dtype=np.float64),
         "mae_s": np.asarray(mae_s_list, dtype=np.float64),
+        "mse_p": np.asarray(mse_p_list, dtype=np.float64),
+        "mse_s": np.asarray(mse_s_list, dtype=np.float64),
         "max_p": np.asarray(max_p_list, dtype=np.float64),
         "max_s": np.asarray(max_s_list, dtype=np.float64),
         "med_p": np.asarray(med_p_list, dtype=np.float64),
@@ -282,6 +331,8 @@ def main() -> None:
         for branch_short, key in (
             ("p_mae", "mae_p"),
             ("s_mae", "mae_s"),
+            ("p_mse", "mse_p"),
+            ("s_mse", "mse_s"),
             ("p_max", "max_p"),
             ("s_max", "max_s"),
             ("p_med", "med_p"),

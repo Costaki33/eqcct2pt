@@ -47,7 +47,7 @@ from conversion.loader import (
     _coerce_mha_qkv_weight,
     load_eqcct_model_p_weights,
 )
-from models.predictor_pt_p import EQCCTModelP
+from models.eqcct import EQCCTModelP
 from paths import MODELPS_DIR
 
 

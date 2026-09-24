@@ -16,7 +16,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from conversion.loader import load_eqcct_model_p_weights
-from models.predictor_pt_p import EQCCTModelP
+from models.eqcct import EQCCTModelP
 from paths import MODELPS_DIR
 
 

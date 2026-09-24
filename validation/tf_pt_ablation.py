@@ -159,7 +159,7 @@ def run_profile(
             pass
 
     from reference.predictor_tf import load_eqcct_model
-    from models.predictor_pt_p import EQCCTModelP, EQCCTModelS
+    from models.eqcct import EQCCTModelP, EQCCTModelS
     from conversion.loader import load_eqcct_model_p_weights, load_eqcct_model_s_weights
 
     model_p_tf, model_s_tf = load_eqcct_model(str(p_h5), str(s_h5))

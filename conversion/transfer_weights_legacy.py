@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import pickle
 # Layer names (mlp.fc1, attn.o) match this module layout, not predictor_pt.TransformerBlock.
-from models.predictor_pt_p import EQCCTModelP, EQCCTModelS
+from models.eqcct import EQCCTModelP, EQCCTModelS
 
 def map_conv1d_weights(tf_weights):
     """Convert TF Conv1D weights to PyTorch format"""

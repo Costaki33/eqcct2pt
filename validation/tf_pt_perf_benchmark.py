@@ -120,7 +120,7 @@ def run_profile(
     rss_baseline = _rss_mb()
 
     from reference.predictor_tf import load_eqcct_model
-    from models.predictor_pt_p import EQCCTModelP, EQCCTModelS
+    from models.eqcct import EQCCTModelP, EQCCTModelS
     from conversion.loader import load_eqcct_model_p_weights, load_eqcct_model_s_weights
 
     t_load_tf0 = time.perf_counter()

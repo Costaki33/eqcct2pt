@@ -5,20 +5,55 @@ struggle to integrate their prior work into modern toolkits. In this repository,
 
 ## Environment
 
-Create a Conda environment from the pinned stack (CPU PyTorch by default; see comments in the file for GPU):
+**Paper tables (ESS 2026EA005507)** used TensorFlow 2.19.0, Keras 3.10.0, and PyTorch 2.7.1 (`environment.paper.yml`):
+
+```bash
+conda env create -f environment.paper.yml
+conda activate eqcct2pt-paper
+```
+
+The default `environment.yml` still pins TensorFlow **2.15.1** / Keras **2.15.0** for `eqcctpro`-compatible loading tests. That older stack is **not** the stack used for Table 1.
 
 ```bash
 conda env create -f environment.yml
 conda activate eqcct2pt
 ```
 
-TensorFlow **2.15.1** with **Keras 2.15.0** matches the version stack used in our `eqcctpro` baseline and avoids Keras 3 + TensorFlow 2.2x changing Keras model load semantics for the S checkpoint (which showed up as bad TF S picks in some environments). Prefer that pair for parity work:
+### Reproduce Table 1 and window IDs
+
+From the repository root, on the tagged revision `ess-2026ea005507-r1`:
 
 ```bash
-python -m pip install 'numpy>=1.26,<2' 'tensorflow==2.15.1' 'keras==2.15.0'
+export PYTHONPATH=.
+export EQCCT_REQUIRE_STRICT_LOAD=1
+
+python scripts/export_window_ids.py --output results/window_ids.csv
+
+python -m validation.tf_pt_seisbench_dataset_benchmark \
+  --datasets both --max-windows 50000 --stride 1 --profiles cpu \
+  --output-json results/tf_pt_benchmark_cpu.json
+
+# GPU Table 1 from one TF32-off run that stores per-window MAE, MSE, and D_w:
+python -m validation.tf_pt_per_window_errors \
+  --datasets txed,stead --max-windows 50000 --stride 1 --profiles gpu0 \
+  --output-npz results/per_window_errors_gpu100k_tf32off_mse.npz \
+  --output-summary-json results/per_window_errors_gpu100k_tf32off_mse_summary.json
+
+python scripts/recompute_table1.py \
+  --cpu-json results/tf_pt_benchmark_cpu.json \
+  --gpu-npz results/per_window_errors_gpu100k_tf32off_mse.npz \
+  --out results/table1_same_run.json
+
+python -m validation.tf_pt_pick_equivalence \
+  --datasets both --max-windows 100000 --profiles cpu \
+  --thresholds 0.1,0.3,0.5 \
+  --output-json results/pick_equivalence_cpu_thresholds.json
+
+python -m validation.find_cpu_argmax_mismatch
+python scripts/plot_cpu_argmax_mismatch.py
 ```
 
-If your env only needs `import tensorflow`, you can omit the separate `keras` pin; for an ad-hoc env, use **`tensorflow==2.15.1`** (not `tensorflow>=2.21`) unless you intentionally re-verify weights on a newer stack.
+GPU runs disable TF32 unless `EQCCT_ALLOW_TF32=1`. Paper runs set `EQCCT_REQUIRE_STRICT_LOAD=1`, which forbids `skip_mismatch`. The P branch loads by name; under Keras 3 the S branch loads positionally and picker kernels are checked against HDF5 (`results/load_weights_strategy.json`). Skipped variables fail the run. Checkpoints: `ModelPS/test_trainer_024.h5` (P) and `ModelPS/test_trainer_021.h5` (S); hashes in `results/checkpoint_manifest.json`. The intended revision tag is `ess-2026ea005507-r1` (apply after the revision commit).
 
 Optional ONNX path (P-model export and ORT check only): `pip install tf2onnx onnx onnxruntime` as described in `validation/p_model_onnx.py`.
 
@@ -48,7 +83,7 @@ Larger studies (SeisBench slices, layer activations, per-window errors, performa
 | ------------- | ----------------------------------------------------------------------- |
 | `ModelPS/`    | Bundled Keras `.h5` checkpoints, exported `.pt` weights, legacy pickles |
 | `paths.py`    | Canonical `MODELPS_DIR`, `REPO_ROOT`                                    |
-| `models/`     | Canonical PyTorch EQCCT implementation (`predictor_pt_p`)                |
+| `models/`     | Canonical PyTorch EQCCT implementation (`eqcct`)                |
 | `reference/`  | TensorFlow/Keras mirror for loading and comparison                      |
 | `conversion/` | HDF5 to `state_dict` loaders (`loader.py`, `catalog.py`, pickle path via `transfer_weights_legacy.py`) |
 | `validation/` | Parity, benchmarks, exports, dataset-driven checks                    |

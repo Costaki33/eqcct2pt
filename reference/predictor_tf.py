@@ -410,10 +410,12 @@ def load_eqcct_model(input_modelP, input_modelS, log_file="results/logs/model.lo
         Keras 3 can reject older MHA checkpoints with reshape/axis errors; then try
         skip_mismatch, then fall back to positional load (least reliable).
         """
+        # Prefer positional over skip_mismatch: skip_mismatch can leave attention /
+        # head weights at init while still returning successfully (Keras 3 + legacy H5).
         attempts = [
             ("by_name strict", {"by_name": True, "skip_mismatch": False}),
-            ("by_name skip_mismatch", {"by_name": True, "skip_mismatch": True}),
             ("positional", {}),
+            ("by_name skip_mismatch", {"by_name": True, "skip_mismatch": True}),
         ]
         last_err = None
         for desc, kw in attempts:
@@ -434,8 +436,67 @@ def load_eqcct_model(input_modelP, input_modelS, log_file="results/logs/model.lo
             f"Could not load weights for {label} from {path!r}: {last_err!r}"
         ) from last_err
 
+    def _verify_loaded_against_h5(branch: tf.keras.models.Model, path: str, label: str) -> None:
+        """Check a few named tensors against HDF5 so a silent bad load cannot pass."""
+        import h5py
+
+        h5 = {}
+
+        def _visitor(name, obj):
+            if hasattr(obj, "shape"):
+                h5[name] = np.asarray(obj)
+
+        with h5py.File(path, "r") as f:
+            f.visititems(_visitor)
+
+        by_layer = {ly.name: ly for ly in branch.layers}
+        required_sub = "picker_P" if label == "modelP" else "picker_S"
+        checked = 0
+        # Name-based checks are reliable for the first conv and the named picker
+        # head. Intermediate conv indices can differ between Keras 2 exports and a
+        # Keras 3 rebuild, so we do not compare those by name after positional load.
+        names = [required_sub]
+        if required_sub == "picker_P":
+            names = ["conv1d", required_sub]
+        for ly_name in names:
+            ly = by_layer[ly_name]
+            for w in ly.weights:
+                    warr = np.asarray(w.numpy() if hasattr(w, "numpy") else w)
+                    wleaf = w.name.split("/")[-1]
+                    if not wleaf.endswith(":0"):
+                        wleaf = wleaf + ":0"
+                    tails = (
+                        f"{ly_name}/{ly_name}/{wleaf}",
+                        f"{ly_name}/{wleaf}",
+                    )
+                    ref = None
+                    for tail in tails:
+                        hits = [k for k in h5 if k.endswith(tail) or k == tail]
+                        if hits:
+                            ref = h5[hits[0]]
+                            break
+                    if ref is None:
+                        continue
+                    if warr.shape != ref.shape:
+                        continue
+                    if not np.allclose(warr, ref, rtol=1e-5, atol=1e-6):
+                        raise RuntimeError(
+                            f"{label}: {ly_name}/{w.name} does not match HDF5"
+                        )
+                    checked += 1
+        head_ok = any(required_sub in k and k.endswith("kernel:0") for k in h5)
+        if not head_ok:
+            raise RuntimeError(f"{label}: HDF5 missing {required_sub} kernel")
+        if checked < 2:
+            raise RuntimeError(
+                f"{label}: too few conv/picker weights verified against HDF5 ({checked})"
+            )
+
     p_how = _load_branch_weights(modelP, input_modelP, "modelP")
     s_how = _load_branch_weights(modelS, input_modelS, "modelS")
+    if os.environ.get("EQCCT_REQUIRE_STRICT_LOAD", "").lower() in ("1", "true", "yes"):
+        _verify_loaded_against_h5(modelP, input_modelP, "modelP")
+        _verify_loaded_against_h5(modelS, input_modelS, "modelS")
 
     sgd = tf.keras.optimizers.Adam()
     model.compile(
@@ -444,11 +505,28 @@ def load_eqcct_model(input_modelP, input_modelS, log_file="results/logs/model.lo
         metrics=["acc", f1, precision, recall],
     )
 
-    if p_how != "by_name strict" or s_how != "by_name strict":
-        # warnings.filterwarnings("ignore") is set globally in this module; use stderr.
+    print(
+        f"[eqcct predictor_tf] weight load strategy: P={p_how!r}, S={s_how!r}",
+        file=sys.stderr,
+    )
+    if os.environ.get("EQCCT_REQUIRE_STRICT_LOAD", "").lower() in ("1", "true", "yes"):
+        # Keras 3 often cannot apply legacy S-branch MHA checkpoints by name.
+        # Positional S load is allowed only after HDF5 verification above.
+        if p_how == "by_name skip_mismatch" or s_how == "by_name skip_mismatch":
+            raise RuntimeError(
+                f"EQCCT_REQUIRE_STRICT_LOAD forbids skip_mismatch (P={p_how!r}, S={s_how!r})"
+            )
+        if p_how not in ("by_name strict", "positional") or s_how not in (
+            "by_name strict",
+            "positional",
+        ):
+            raise RuntimeError(
+                f"EQCCT_REQUIRE_STRICT_LOAD is set but load was P={p_how!r}, S={s_how!r}"
+            )
+    elif p_how != "by_name strict" or s_how != "by_name strict":
         print(
-            f"[eqcct predictor_tf] weight load strategy: P={p_how!r}, S={s_how!r} "
-            f"(if not 'by_name strict', verify TF outputs against a known-good Keras version).",
+            f"[eqcct predictor_tf] non-strict load (P={p_how!r}, S={s_how!r}); "
+            "verify TF outputs against a known-good Keras version.",
             file=sys.stderr,
         )
 

@@ -3,7 +3,7 @@ import re
 import h5py
 import torch
 import numpy as np
-from models.predictor_pt_p import EQCCTModelP, EQCCTModelS
+from models.eqcct import EQCCTModelP, EQCCTModelS
 
 
 def collapse_duplicate_layer_prefix(path: str) -> str:
@@ -207,7 +207,7 @@ def load_torchish_into_eqcctS(model: EQCCTModelS, torchish: dict):
             bb = _coerce_mha_bias(torchish[kb], getattr(attn, proj).bias)
             getattr(attn, proj).bias.data.copy_(_as_tensor(bb, getattr(attn, proj).bias))
 
-        # output projection (predictor_pt_p uses attn.o; older code used attn.proj)
+        # output projection (eqcct uses attn.o; older code used attn.proj)
         out_mod = getattr(attn, "o", None) or getattr(attn, "proj", None)
         if out_mod is None:
             raise AttributeError("Attention module needs .o or .proj Linear")
@@ -241,7 +241,7 @@ def load_torchish_into_eqcctS(model: EQCCTModelS, torchish: dict):
         lin.weight.data.copy_(_as_tensor(W, lin.weight))
         lin.bias.data.copy_(_as_tensor(torchish[kB], lin.bias))
 
-    # Keras dense_1..dense_8 — MLP lives under TransformerBlock.mlp in predictor_pt_p
+    # Keras dense_1..dense_8 — MLP lives under TransformerBlock.mlp in eqcct
     for i in range(4):
         copy_dense(f'dense_{2*i+1}', model.transformers[i].mlp.fc1)
         copy_dense(f'dense_{2*i+2}', model.transformers[i].mlp.fc2)
