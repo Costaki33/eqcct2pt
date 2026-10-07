@@ -1,7 +1,10 @@
 {
-  "git_commit": "e8d466beb850c0631dda336bf64c54af02b27354",
+  "git_commit": "aa4561524619bc1517a50e69bc8b6e40bd1ab131",
   "release_tag": "ess-2026ea005507-r1",
   "paper_environment": "environment.paper.yml",
+  "table1": "results/table1_same_run.json",
+  "cpu_per_window": "results/per_window_errors_cpu100k_table1.npz",
+  "gpu_per_window": "results/per_window_errors_gpu100k_tf32off_mse.npz",
   "tensorflow": "2.19.0",
   "keras": "3.10.0",
   "pytorch": "2.7.1",
