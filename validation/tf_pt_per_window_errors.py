@@ -182,6 +182,14 @@ def run_profile(
             med_p_list.append(float(np.median(d_p)))
             med_s_list.append(float(np.median(d_s)))
             src_dataset.append(ds_lab)
+        n_done = len(mae_p_list)
+        if n_done and n_done % 2000 == 0:
+            print(
+                f"[mae] n={n_done} P={float(np.mean(mae_p_list)):.4e} "
+                f"S={float(np.mean(mae_s_list)):.4e} "
+                f"(Table 1 CPU: 1.38e-9 / 1.36e-9)",
+                flush=True,
+            )
 
     for ds_name in datasets:
         if ds_name.lower() == "txed":

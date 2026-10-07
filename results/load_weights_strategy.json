@@ -1,0 +1,19 @@
+{
+  "EQCCT_REQUIRE_STRICT_LOAD": true,
+  "P_branch": {
+    "strategy": "by_name strict",
+    "by_name": true,
+    "skip_mismatch": false,
+    "checkpoint": "ModelPS/test_trainer_024.h5"
+  },
+  "S_branch": {
+    "strategy": "positional",
+    "by_name": false,
+    "skip_mismatch": false,
+    "note": "Keras 3 cannot apply the legacy S-branch multi-head-attention checkpoint by name. After the name-based attempt fails, load_weights is positional. skip_mismatch=True is forbidden for paper runs. picker_S (and picker_P / first P conv) kernels are then compared to the HDF5 arrays.",
+    "checkpoint": "ModelPS/test_trainer_021.h5"
+  },
+  "n_errors_policy": "A skipped variable or HDF5 kernel mismatch raises and is counted in n_errors, never as a successful window.",
+  "paper_cpu_n_errors": 0,
+  "source": "reference/predictor_tf.py load_eqcct_model; logged as [eqcct predictor_tf] weight load strategy"
+}

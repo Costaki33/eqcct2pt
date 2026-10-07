@@ -1,0 +1,29 @@
+# Software stack used for the ESS 2026EA005507 numbers (CPU + GPU TF32-off).
+# TensorFlow 2.19.0 + Keras 3.10.0 + PyTorch 2.7.1 + CUDA 12.6 on NVIDIA RTX 6000 Ada.
+#
+# The default environment.yml remains the older eqcctpro-compatible pin
+# (TensorFlow 2.15.1 / Keras 2.15.0). Use this file to reproduce the paper tables.
+#
+#   conda env create -f environment.paper.yml
+#   conda activate eqcct2pt-paper
+name: eqcct2pt-paper
+channels:
+  - conda-forge
+  - pytorch
+  - nvidia
+dependencies:
+  - python=3.11
+  - pip
+  - numpy>=1.26,<2
+  - scipy
+  - matplotlib>=3.7
+  - h5py
+  - pandas
+  - psutil
+  - tqdm
+  - pip:
+    - tensorflow==2.19.0
+    - keras==3.10.0
+    - torch==2.7.1
+    - seisbench
+    - silence-tensorflow

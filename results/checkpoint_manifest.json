@@ -1,0 +1,35 @@
+{
+  "git_commit": "e8d466beb850c0631dda336bf64c54af02b27354",
+  "release_tag": "ess-2026ea005507-r1",
+  "paper_environment": "environment.paper.yml",
+  "tensorflow": "2.19.0",
+  "keras": "3.10.0",
+  "pytorch": "2.7.1",
+  "cuda": "12.6",
+  "dtype": "float32",
+  "tf32": "disabled for reported GPU results",
+  "deterministic_cuda": false,
+  "checkpoints": {
+    "p_h5": {
+      "path": "ModelPS/test_trainer_024.h5",
+      "sha256": "82b810c1d29b964a13f6e3996956d1c17de37bb83ddc07637f4c1d4c45a969b2",
+      "lineage": "Saad et al. (2023) / TexNet EQCCT P-branch"
+    },
+    "s_h5": {
+      "path": "ModelPS/test_trainer_021.h5",
+      "sha256": "ccf3dae379351975e5f098a3ddb1730f32fcafd2f6242cbf2132b16a2ddee503",
+      "lineage": "Saad et al. (2023) / TexNet EQCCT S-branch"
+    },
+    "pt_p": {
+      "path": "ModelPS/eqcct_model_p.pt",
+      "sha256": "57e8d5bfe79c75693f22d439ec1920ec5a49c00ccecf78dd86d4bd9baaf1e422"
+    },
+    "pt_s": {
+      "path": "ModelPS/eqcct_model_s.pt",
+      "sha256": "baa58d27f4037882dc97505e6a8866d9801bd5dff030895aac064b4f8acc2e53"
+    }
+  },
+  "window_ids": "results/window_ids.csv",
+  "n_windows": 100000,
+  "selection": "deterministic; TXED then STEAD; first 50000 P-centered 6000-sample windows per dataset with catalog S inside the window; no RNG"
+}

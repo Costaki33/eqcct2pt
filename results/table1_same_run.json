@@ -1,0 +1,62 @@
+{
+  "cpu_source": "results/per_window_errors_cpu100k_table1.npz",
+  "gpu_source": "results/per_window_errors_gpu100k_tf32off_mse.npz",
+  "cpu": {
+    "n_windows": 100000,
+    "n_errors": 0,
+    "p": {
+      "mae_mean": 1.5969423498380116e-09,
+      "mse_mean": 4.66759153145019e-16,
+      "d_mean": 3.6166574247886277e-07,
+      "dmax": 4.500150680541992e-06,
+      "share_le_1e-4": 1.0,
+      "share_le_1e-3": 1.0,
+      "n": 100000,
+      "bound_D_times_MAE": 7.186481202409856e-15,
+      "bound_D2": 2.0251356147582555e-11,
+      "mse_ok": true
+    },
+    "s": {
+      "mae_mean": 1.4980734109333311e-09,
+      "mse_mean": 2.723439127440521e-16,
+      "d_mean": 2.6777176236151944e-07,
+      "dmax": 4.0531158447265625e-06,
+      "share_le_1e-4": 1.0,
+      "share_le_1e-3": 1.0,
+      "n": 100000,
+      "bound_D_times_MAE": 6.071865078417451e-15,
+      "bound_D2": 1.6427748050773516e-11,
+      "mse_ok": true
+    }
+  },
+  "gpu": {
+    "n_windows": 100000,
+    "n_errors": 0,
+    "p": {
+      "mae_mean": 1.8244833077574221e-09,
+      "mse_mean": 6.433333324024298e-16,
+      "d_mean": 3.911821033094043e-07,
+      "dmax": 6.973743438720703e-06,
+      "share_le_1e-4": 1.0,
+      "share_le_1e-3": 1.0,
+      "n": 100000,
+      "bound_D_times_MAE": 1.2723478496528768e-14,
+      "bound_D2": 4.863309754910006e-11,
+      "mse_ok": true
+    },
+    "s": {
+      "mae_mean": 1.4603046187176508e-09,
+      "mse_mean": 2.790386127086302e-16,
+      "d_mean": 2.358668240873385e-07,
+      "dmax": 6.645917892456055e-06,
+      "share_le_1e-4": 1.0,
+      "share_le_1e-3": 1.0,
+      "n": 100000,
+      "bound_D_times_MAE": 9.705064593971852e-15,
+      "bound_D2": 4.416822463326753e-11,
+      "mse_ok": true
+    }
+  },
+  "aggregation": "Mean MAE/MSE are averages of per-window MAE_w/MSE_w over N windows; each window averages T=6000 samples. D_w is the per-window max |TF-PT|; Dmax is the dataset-wide max.",
+  "note": "CPU Table 1 now from the same per-window NPZ used for Figure 3 (batch-1 CPU, TF32 not applicable). Original April JSON averages 1.38e-9 / 1.36e-9 were not recoverable as per-window arrays."
+}
