@@ -5,7 +5,7 @@ struggle to integrate their prior work into modern toolkits. In this repository,
 
 ## Environment
 
-**Paper tables (ESS 2026EA005507)** used TensorFlow 2.19.0, Keras 3.10.0, and PyTorch 2.7.1 (`environment.paper.yml`):
+Table 1 used TensorFlow 2.19.0, Keras 3.10.0, and PyTorch 2.7.1 (`environment.paper.yml`):
 
 ```bash
 conda env create -f environment.paper.yml
@@ -21,7 +21,7 @@ conda activate eqcct2pt
 
 ### Reproduce Table 1 and window IDs
 
-From the repository root, on the tagged revision `ess-2026ea005507-r1`:
+From the repository root, on tag `ess-2026ea005507-r1` (commit `dbfe567`). The committed Table 1 file is `results/table1_same_run.json`. CPU columns come from `results/per_window_errors_cpu100k_table1.npz` (one window at a time). GPU columns come from `results/per_window_errors_gpu100k_tf32off_mse.npz` (TF32 off). To rebuild those arrays and the summary JSON:
 
 ```bash
 export PYTHONPATH=.
@@ -29,20 +29,22 @@ export EQCCT_REQUIRE_STRICT_LOAD=1
 
 python scripts/export_window_ids.py --output results/window_ids.csv
 
-python -m validation.tf_pt_seisbench_dataset_benchmark \
-  --datasets both --max-windows 50000 --stride 1 --profiles cpu \
-  --output-json results/tf_pt_benchmark_cpu.json
+EQCCT_PER_WINDOW_BATCH=1 python -m validation.tf_pt_per_window_errors \
+  --datasets txed,stead --max-windows 50000 --stride 1 --profiles cpu \
+  --output-npz results/per_window_errors_cpu100k_table1.npz \
+  --output-summary-json results/per_window_errors_cpu100k_table1_summary.json
 
-# GPU Table 1 from one TF32-off run that stores per-window MAE, MSE, and D_w:
 python -m validation.tf_pt_per_window_errors \
   --datasets txed,stead --max-windows 50000 --stride 1 --profiles gpu0 \
   --output-npz results/per_window_errors_gpu100k_tf32off_mse.npz \
   --output-summary-json results/per_window_errors_gpu100k_tf32off_mse_summary.json
 
 python scripts/recompute_table1.py \
-  --cpu-json results/tf_pt_benchmark_cpu.json \
+  --cpu-npz results/per_window_errors_cpu100k_table1.npz \
   --gpu-npz results/per_window_errors_gpu100k_tf32off_mse.npz \
   --out results/table1_same_run.json
+
+python scripts/plot_error_distributions.py results/per_window_errors_same_run.npz
 
 python -m validation.tf_pt_pick_equivalence \
   --datasets both --max-windows 100000 --profiles cpu \
@@ -53,7 +55,7 @@ python -m validation.find_cpu_argmax_mismatch
 python scripts/plot_cpu_argmax_mismatch.py
 ```
 
-GPU runs disable TF32 unless `EQCCT_ALLOW_TF32=1`. Paper runs set `EQCCT_REQUIRE_STRICT_LOAD=1`, which forbids `skip_mismatch`. The P branch loads by name; under Keras 3 the S branch loads positionally and picker kernels are checked against HDF5 (`results/load_weights_strategy.json`). Skipped variables fail the run. Checkpoints: `ModelPS/test_trainer_024.h5` (P) and `ModelPS/test_trainer_021.h5` (S); hashes in `results/checkpoint_manifest.json`. The intended revision tag is `ess-2026ea005507-r1` (apply after the revision commit).
+Merge the CPU and GPU NPZs before plotting, or pass a combined file to `plot_error_distributions.py`. GPU inference disables TF32 unless `EQCCT_ALLOW_TF32=1`. `EQCCT_REQUIRE_STRICT_LOAD=1` forbids `skip_mismatch`. The P branch loads by name; under Keras 3 the S branch loads positionally and picker kernels are checked against HDF5 (`results/load_weights_strategy.json`). Skipped variables fail the run. Checkpoints: `ModelPS/test_trainer_024.h5` (P) and `ModelPS/test_trainer_021.h5` (S); hashes in `results/checkpoint_manifest.json`.
 
 Optional ONNX path (P-model export and ORT check only): `pip install tf2onnx onnx onnxruntime` as described in `validation/p_model_onnx.py`.
 
