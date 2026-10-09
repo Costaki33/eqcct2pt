@@ -1,0 +1,45 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it using the metadata in this file.
+type: software
+title: "eqcct2pt: TensorFlow to PyTorch weight transfer for EQCCT and SeisBench"
+version: ess-2026ea005507-r1
+date-released: "2026-10-07"
+url: "https://github.com/Costaki33/eqcct2pt"
+repository-code: "https://github.com/Costaki33/eqcct2pt"
+abstract: >-
+  Conversion code, Keras checkpoints, window identifiers, and Table 1
+  arrays for transferring EQCCT P- and S-branch weights from TensorFlow
+  to PyTorch without retraining, for use with SeisBench.
+keywords:
+  - TensorFlow
+  - PyTorch
+  - SeisBench
+  - EQCCT
+  - seismic phase picking
+  - weight transfer
+authors:
+  - family-names: Skevofilax
+    given-names: Constantinos G.
+    affiliation: Bureau of Economic Geology, The University of Texas at Austin
+    email: constantinos.skevofilax@austin.utexas.edu
+  - family-names: Chen
+    given-names: Yangkang
+    affiliation: Bureau of Economic Geology, The University of Texas at Austin
+    email: yangkang.chen@beg.utexas.edu
+  - family-names: Savvaidis
+    given-names: Alexandros
+    affiliation: Bureau of Economic Geology, The University of Texas at Austin
+    email: alexandros.savvaidis@beg.utexas.edu
+preferred-citation:
+  type: article
+  title: "Porting Deep-Learning Phase Pickers from TensorFlow to PyTorch for SeisBench Without Retraining"
+  journal: Earth and Space Science
+  year: 2026
+  notes: "Manuscript 2026EA005507, in revision. Software snapshot tag ess-2026ea005507-r1 (commit 33ec634)."
+  authors:
+    - family-names: Skevofilax
+      given-names: Constantinos G.
+    - family-names: Chen
+      given-names: Yangkang
+    - family-names: Savvaidis
+      given-names: Alexandros
